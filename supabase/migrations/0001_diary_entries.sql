@@ -31,19 +31,24 @@ create index if not exists idx_diary_entries_public on public.diary_entries (is_
 alter table public.diary_entries enable row level security;
 
 -- Policy: owner can manage their entries
-create policy if not exists "diary_owner_rw"
+drop policy if exists "diary_owner_rw" on public.diary_entries;
+create policy "diary_owner_rw"
   on public.diary_entries
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
 -- Policy: anyone can read published public entries
-create policy if not exists "diary_public_read"
+drop policy if exists "diary_public_read" on public.diary_entries;
+create policy "diary_public_read"
   on public.diary_entries
   for select
   using (status = 'published' and is_public = true);
 
 -- Trigger to update updated_at
+drop trigger if exists set_diary_updated_at on public.diary_entries;
+drop function if exists public.set_updated_at();
+
 create or replace function public.set_updated_at()
 returns trigger as $$
 begin
