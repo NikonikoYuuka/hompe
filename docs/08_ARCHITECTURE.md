@@ -1,6 +1,6 @@
 # 08. SYSTEM ARCHITECTURE
 
-> spec §48 / §49。
+> 原典: `docs/10_SPEC.md` §48 / §49。
 > §49 は「Repository Audit まで HYPOTHESIS」とされていた。Audit を実施したので、
 > **このファイルが確定版**であり、以下は仮説ではなく実際の構成である。
 > hosting / DB は Cloudflare（Workers + D1）に**確定**した（§4）。
@@ -158,7 +158,7 @@ listings（確定 Fact）
 | --- | --- | --- |
 | Frontend / Web | Next.js 15 App Router + `@opennextjs/cloudflare` | Cloudflare Workers 上で動く |
 | Hosting | **Cloudflare Workers（無料枠）** | Vercel Hobby は AdSense 掲載が規約違反になるため不可（D-020） |
-| Database | **Cloudflare D1（無料枠）** | SQLite。`db/migrations/` |
+| Database | **Cloudflare D1（無料枠）** | SQLite。`db/migrations/`。原典 §49 は Supabase Free を第一候補としていたが、AdSense 掲載可否を含めて再評価し Cloudflare に決定（D-020） |
 | Source checking | Node スクリプト（`scripts/`） | Worker の外。AI を使わない |
 | Scheduled job | GitHub Actions（`.github/workflows/ops.yml`） | D1 へは REST API で接続 |
 | Analytics | 自前（`analytics_events`） | 外部サービスを増やさない。個人情報を持たない |

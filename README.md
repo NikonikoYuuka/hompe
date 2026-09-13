@@ -105,6 +105,7 @@ legacy/         このリポジトリに元々あった Retro Homepage Builder �
 | `docs/07_MVP_V0.1.md` | 実装範囲 / リポジトリ監査 / gap / risk |
 | `docs/08_ARCHITECTURE.md` | 構成図 / data flow / deployment / scheduled job / 無料枠見積もり |
 | `docs/09_MONETIZATION.md` | AdSense の要件確認・実装・有効化手順 |
+| `docs/10_SPEC.md` | **原典**。実装依頼の原文（§0〜§49）。コード中の `spec §N` はここを指す |
 
 ---
 
