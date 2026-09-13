@@ -17,6 +17,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: base, changeFrequency: "weekly" as const },
     { url: `${base}/listings`, changeFrequency: "weekly" as const },
     { url: `${base}/about`, changeFrequency: "monthly" as const },
+    { url: `${base}/privacy`, changeFrequency: "monthly" as const },
     ...listings.map((listing) => ({
       url: `${base}/listings/${listing.id}`,
       lastModified: listing.published_at ?? undefined,

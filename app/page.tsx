@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdSlot } from "./_components/ad-slot";
 import { ListingCard } from "./_components/listing-card";
 import { CATEGORY_ENTRIES } from "../lib/labels";
 import { fetchWeekendListings, fetchPublicListings } from "../lib/listings";
@@ -100,6 +101,8 @@ export default async function HomePage() {
           </>
         )}
       </section>
+
+      <AdSlot placement="top" />
     </div>
   );
 }

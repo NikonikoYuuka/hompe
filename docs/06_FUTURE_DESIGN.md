@@ -31,6 +31,21 @@
 
 ---
 
+## 将来の収益化候補
+
+V0.1 で実装するのは **AdSense のみ**（`docs/09_MONETIZATION.md`）。
+以下は将来候補であり、V0.1 では実装しない。
+
+| 項目 | メモ |
+| --- | --- |
+| 交通 / 宿泊 / レンタカー / 仕事用品等の Affiliate | 案件との関連付け方を設計してから |
+| PR / Featured Listing | 通常の Listing と見分けが付く表示が必須（D-019 と同じ理由） |
+| Employer direct listing | `source_type` に `direct_post` を用意済み |
+| B2B | — |
+| その他適法な Referral | — |
+
+---
+
 ## AI FALLBACK（将来の使いどころ）
 
 将来的に AI を使用してよい領域:

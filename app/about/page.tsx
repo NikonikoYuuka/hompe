@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "このサイトについて" };
@@ -101,6 +102,13 @@ export default function AboutPage() {
           どのページが見られ、どの案件から公式サイトへ移動されたかを把握するため、
           ページの閲覧とリンクのクリックを記録しています。氏名、メールアドレス、IPアドレスなどの
           個人を特定する情報は保存していません。
+        </p>
+        <p>
+          Cookie と外部送信の詳細は
+          <Link href="/privacy" className="underline hover:text-ink-50">
+            プライバシーポリシー
+          </Link>
+          に記載しています。
         </p>
       </section>
     </div>

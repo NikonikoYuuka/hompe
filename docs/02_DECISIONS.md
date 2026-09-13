@@ -172,3 +172,57 @@ Source 固有処理は adapter に置く。V0.1 は `generic` adapter のみを�
 テンプレート生成し、人間が確認して手動投稿する。記事も Markdown で十分とする。
 
 **Reason**: 生成数は Product Success ではない。自動投稿は検証対象ではない。
+
+---
+
+## D-017 AdSense は「最大化」ではなく「安全に設置・変更できる構造」を作る
+
+**Decision**: V0.1 では広告最適化を行わない。1ページ1枠まで。
+ID はすべて環境変数で管理し、コードを変えずに有効化・変更できるようにする。
+
+**Reason**: V0.1 の目的は Demand Validation であり、広告収益は検証対象ではない。
+AdSense 実装によって Product Validation を妨げてはいけない（spec §47）。
+
+**Not allowed**: 広告収益のために `official_source_click` を下げる配置。
+詳細ページで CTA の上に広告を置くこと。
+
+---
+
+## D-018 同意管理は Google の認定 CMP を使い、自前実装しない
+
+**Decision**: EEA / UK / スイス向けの同意取得は、AdSense 管理画面の
+「プライバシーとメッセージ」で Google の CMP を有効化して対応する。
+自前の同意バナーを実装しない。
+
+**Reason**: 2024年1月16日以降、Google 認定かつ IAB TCF 連携済みの CMP の利用が
+必須になっている。自前バナーはこの要件を満たさず、
+「対応したつもり」の状態を作るだけで危険。Google の CMP は AdSense タグ経由で
+配信されるため、サイト側の追加実装を必要としない。
+
+詳細と出典: `docs/09_MONETIZATION.md` §1-1。
+
+---
+
+## D-019 広告と Listing を構造的に分離する
+
+**Decision**: `lib/ads.ts` は listings / supabase を import しない。
+`AdSlot` は Listing のデータを受け取らない。
+一覧では `<ul>` の外にのみ広告を置く。
+
+**Reason**: spec §48 rule 13。および、ユーザーが広告を案件情報と誤認しないため。
+Fact Layer と Brand Layer を混ぜないのと同じ理由（D-006）。
+
+この分離はテスト（`tests/ads.test.ts`）で固定している。
+
+---
+
+## D-020 hosting は AdSense の可否を含めて選ぶ（未確定）
+
+**Decision**: hosting をまだ確定させない。Vercel Hobby は AdSense 掲載が
+規約上できないため、選択肢を整理したうえで依頼者の判断を待つ。
+
+**Reason**: Vercel の Fair Use Guidelines が Hobby を非商用に限定し、
+Google AdSense を commercial usage として名指ししている。
+有料サービスの導入を独断で行わない（spec §45）。
+
+選択肢と推奨: `docs/08_ARCHITECTURE.md` §4.2。

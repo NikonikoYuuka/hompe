@@ -34,6 +34,8 @@
 | Admin | なし | 新規（`/admin`、`ADMIN_TOKEN` 共有トークン [D-015]） |
 | Analytics | なし | 新規（`analytics_events` + `/api/track`） |
 | 画像処理 (`sharp`) | 依存あり | **V0.1 では使わない**。依存は残す（既存 diary 用） |
+| AdSense | なし | 新規（`lib/ads.ts` + `AdSlot`）。ID は環境変数のみ |
+| hosting / CI・CD | 設定なし | **未確定**。`08_ARCHITECTURE.md` §4.2 に選択肢を整理し判断待ち |
 
 ### 既存コードの扱い
 
@@ -106,6 +108,7 @@ lib/lifecycle.ts         expired / closed 判定
 | `/listings` | 公開中 Listing 一覧 + 最小フィルタ |
 | `/listings/[id]` | Fact Layer 中心の詳細 + CTA「公式サイトで詳細を見る」 |
 | `/about` | サービス説明 / Source ポリシー / Disclaimer |
+| `/privacy` | プライバシーポリシー / Cookie / 外部送信の公表 |
 
 フィルタ（最小）: `category` / `area`(都道府県) / `availability` / `reward`(paid/volunteer) / `qualification`。
 複雑な search engine もユーザー適性スコアリングも作らない。
@@ -122,6 +125,18 @@ lib/lifecycle.ts         expired / closed 判定
 | `/admin/sources` | Source 一覧 + 直近 check 結果 |
 
 高機能 CMS は作らない。
+
+### AdSense (spec §47)
+
+| ファイル | 役割 |
+| --- | --- |
+| `lib/ads.ts` | 設定と環境ガード。listings を import しない |
+| `app/_components/ad-script.tsx` | script を root layout で1回だけ読み込む |
+| `app/_components/ad-slot.tsx` | 再利用可能な広告枠（TOP / 一覧 / 詳細 / 将来の記事） |
+| `app/ads.txt/route.ts` | ads.txt を環境変数から生成 |
+| `app/privacy/page.tsx` | Cookie / 外部送信の公表・オプトアウト導線 |
+
+1ページ1枠まで。未設定なら何も描画しない。詳細は `09_MONETIZATION.md`。
 
 ### Analytics
 
@@ -142,6 +157,8 @@ OpenAI API / AI 抽出 / X API 自動投稿 / 記事 CMS / user account / 応募
 
 | risk | 対応 |
 | --- | --- |
+| Vercel Hobby は AdSense 掲載が規約違反になる | 判断待ち。広告なしで Demand Validation を先に回せば Hobby でも問題ない（`08_ARCHITECTURE.md` §4.2） |
+| 広告配置が `official_source_click` を下げる | 1ページ1枠、CTA から離す、一覧の中に入れない。数値を metrics で監視する |
 | 公式採用ページの HTML 構造が Source ごとにバラバラで rule 抽出が通らない | 目標を「全対応」に置かない。抽出不能は `review_required`。率を実測して AI 導入判断の材料にする |
 | ページ全体 hash だと軽微な変更でも `changed` になる | normalize で noise を落とす。それでも多い場合は本文領域の絞り込みを adapter 側で行う（Source 単位で `content_selector` を保持） |
 | grade C の Source が多く、自動公開できる件数が伸びない | 想定内。grade A/B の獲得（許可取得・提携）が次の打ち手 |

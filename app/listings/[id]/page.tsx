@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { AdSlot } from "../../_components/ad-slot";
 import { ListingViewTracker } from "../../_components/listing-view-tracker";
 import { OfficialSourceLink } from "../../_components/official-source-link";
 import {
@@ -152,6 +153,9 @@ export default async function ListingDetailPage({ params }: { params: { id: stri
           <p className="mt-1">最終確認：{formatVerifiedAt(listing.last_verified_at)}</p>
         )}
       </footer>
+
+      {/* CTA から離す。誤クリックを誘発する配置にしない (spec §47) */}
+      <AdSlot placement="listing_detail" />
     </article>
   );
 }

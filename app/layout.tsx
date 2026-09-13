@@ -1,6 +1,7 @@
 import "../styles/globals.css";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AdScript } from "./_components/ad-script";
 import { PageViewTracker } from "./_components/page-view-tracker";
 
 export const metadata: Metadata = {
@@ -40,15 +41,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               肉体副業は、公開されている募集情報を集めて紹介する編集メディアです。
               応募の受付・仲介は行っていません。詳細と応募は各情報提供元の公式ページで確認してください。
             </p>
-            <p className="mt-3">
+            <p className="mt-3 flex flex-wrap gap-4">
               <Link href="/about" className="underline hover:text-ink-200">
                 掲載方針・免責事項
+              </Link>
+              <Link href="/privacy" className="underline hover:text-ink-200">
+                プライバシーポリシー
               </Link>
             </p>
           </div>
         </footer>
 
         <PageViewTracker />
+        <AdScript />
       </body>
     </html>
   );

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { AdSlot } from "../_components/ad-slot";
 import { ListingCard } from "../_components/listing-card";
 import { CATEGORY_LABELS } from "../../lib/labels";
 import {
@@ -188,6 +189,9 @@ export default async function ListingsPage({
           ))}
         </ul>
       )}
+
+      {/* 一覧の「中」に広告を差し込まない。案件カードと誤認させないため下に置く (spec §47) */}
+      <AdSlot placement="listing_list" />
     </div>
   );
 }

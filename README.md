@@ -59,6 +59,7 @@ DB は Supabase。`supabase/README.md` の手順で
 4. **「土日勤務可能」を「今週末働ける」と表示しない。**（D-005）
 5. **第三者求人媒体は Discovery のみ。Fact の取得元にしない。**（D-002）
 6. **削除しない。** expired / closed は archive として残す（D-004）。
+7. **広告は Listing と構造的に分離する。** 設定は環境変数のみ。1ページ1枠まで（D-017〜D-019）。
 
 ---
 
@@ -91,6 +92,20 @@ legacy/         このリポジトリに元々あった Retro Homepage Builder �
 | `docs/05_OPERATIONS.md` | 週次運用 / lifecycle / metrics |
 | `docs/06_FUTURE_DESIGN.md` | V0.1 でやらないこと（Rejected ではない） |
 | `docs/07_MVP_V0.1.md` | 実装範囲 / リポジトリ監査 / gap / risk |
+| `docs/08_ARCHITECTURE.md` | 構成図 / data flow / deployment / scheduled job / 無料枠見積もり |
+| `docs/09_MONETIZATION.md` | AdSense の要件確認・実装・有効化手順 |
+
+---
+
+---
+
+## 収益化 / hosting
+
+AdSense は **環境変数を設定するだけで有効になる**構造にしてある
+（未設定なら広告関連の DOM も script も出ない）。有効化の手順は `docs/09_MONETIZATION.md`。
+
+**注意: hosting は未確定。** Vercel Hobby は規約上 AdSense を掲載できないため、
+選択肢を `docs/08_ARCHITECTURE.md` §4.2 に整理してある。
 
 ---
 
