@@ -14,27 +14,32 @@
     "ops:extract": "tsx scripts/extract.ts",
     "ops:lifecycle": "tsx scripts/lifecycle.ts",
     "ops:weekend": "tsx scripts/weekend.ts",
-    "ops:metrics": "tsx scripts/metrics.ts"
+    "ops:metrics": "tsx scripts/metrics.ts",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "db:migrate:local": "wrangler d1 migrations apply nikutai-fukugyou --local",
+    "db:migrate:remote": "wrangler d1 migrations apply nikutai-fukugyou --remote",
+    "db:console": "wrangler d1 execute nikutai-fukugyou --remote --command"
   },
   "dependencies": {
-    "@supabase/auth-helpers-nextjs": "^0.8.6",
-    "@supabase/supabase-js": "^2.45.3",
-    "next": "14.1.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "sharp": "^0.34.4"
+    "next": "^15.5.25",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.6",
     "@types/node": "^20.11.5",
-    "@types/react": "^18.2.46",
-    "@types/react-dom": "^18.2.18",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.16",
     "eslint": "^8.56.0",
-    "eslint-config-next": "14.1.0",
+    "eslint-config-next": "^15.5.25",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "wrangler": "^4.131.1"
   },
   "description": "肉体副業 — 週末に身体を使ってできる仕事・ボランティアを公式の募集情報から集めて紹介する編集メディア (V0.1)"
 }

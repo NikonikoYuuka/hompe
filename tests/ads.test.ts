@@ -81,7 +81,7 @@ test("ads.txt 用の ID は ca- を外した形になる", () => {
 test("広告設定は Listing の domain logic を import しない (§48 rule 13)", () => {
   const source = readFileSync(new URL("../lib/ads.ts", import.meta.url), "utf8");
   assert.ok(!/from ["'][^"']*listings["']/.test(source), "listings を import していない");
-  assert.ok(!/from ["'][^"']*supabase["']/.test(source), "supabase を import していない");
+  assert.ok(!/from ["'][^"']*\/db["']/.test(source), "DB を import していない");
 });
 
 test("詳細ページの広告は CTA より後ろに置く（誤クリック防止 / spec §47）", () => {

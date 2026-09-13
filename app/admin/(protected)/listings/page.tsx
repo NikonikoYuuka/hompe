@@ -12,10 +12,11 @@ const STATUSES = Object.keys(STATUS_LABELS) as ListingStatus[];
 export default async function AdminListingsPage({
   searchParams
 }: {
-  searchParams: { status?: string };
+  searchParams: Promise<{ status?: string }>;
 }) {
-  const status = STATUSES.includes(searchParams.status as ListingStatus)
-    ? (searchParams.status as ListingStatus)
+  const { status: requested } = await searchParams;
+  const status = STATUSES.includes(requested as ListingStatus)
+    ? (requested as ListingStatus)
     : undefined;
 
   const [listings, counts] = await Promise.all([

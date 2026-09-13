@@ -18,7 +18,8 @@ import type { ListingCategory } from "../../lib/types";
  */
 
 export const metadata: Metadata = { title: "案件をさがす" };
-export const revalidate = 300;
+// D1 binding はリクエスト時にしか無いので、ビルド時のプリレンダリングを行わない
+export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -65,9 +66,9 @@ function parseFilters(params: SearchParams): ListingFilters {
 export default async function ListingsPage({
   searchParams
 }: {
-  searchParams: SearchParams;
+  searchParams: Promise<SearchParams>;
 }) {
-  const filters = parseFilters(searchParams);
+  const filters = parseFilters(await searchParams);
   const [listings, prefectures] = await Promise.all([
     fetchPublicListings(filters),
     fetchAvailablePrefectures()

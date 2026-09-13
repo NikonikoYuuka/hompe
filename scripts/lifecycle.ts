@@ -1,7 +1,7 @@
 import "./_bootstrap";
-import { supabaseService } from "../lib/supabase";
+import { getDb } from "../lib/db";
+import { mapListing, type SqliteRow } from "../lib/db/rows";
 import { judgeExpiry, todayIso } from "../lib/lifecycle";
-import type { ListingRow } from "../lib/types";
 
 /**
  * 期限切れの掃除 (docs/05_OPERATIONS.md)。
@@ -10,31 +10,25 @@ import type { ListingRow } from "../lib/types";
  * 日次で回してよい。
  */
 async function main() {
-  const db = supabaseService();
+  const db = await getDb();
   const today = todayIso();
 
-  const { data, error } = await db
-    .from("listings")
-    .select("*")
-    .in("status", ["active", "scheduled", "draft", "review_required"]);
-  if (error) throw new Error(`listings の取得に失敗しました: ${error.message}`);
+  const rows = await db.all<SqliteRow>(
+    `select * from listings where status in ('active', 'scheduled', 'draft', 'review_required')`
+  );
+  const listings = rows.map(mapListing);
 
-  const listings = (data ?? []) as ListingRow[];
   let expired = 0;
 
   for (const listing of listings) {
     const decision = judgeExpiry(listing, today);
     if (!decision) continue;
 
-    const { error: updateError } = await db
-      .from("listings")
-      .update({ status: decision.status, review_reason: decision.reason })
-      .eq("id", listing.id);
-
-    if (updateError) {
-      console.error(`✗ ${listing.title} — ${updateError.message}`);
-      continue;
-    }
+    await db.run("update listings set status = ?, review_reason = ? where id = ?", [
+      decision.status,
+      decision.reason,
+      listing.id
+    ]);
     expired += 1;
     console.log(`- ${listing.title} — ${decision.reason}`);
   }

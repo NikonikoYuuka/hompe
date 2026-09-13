@@ -1,10 +1,10 @@
 import { existsSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { CACHE_DIR, arg, flag } from "./_bootstrap";
-import { supabaseService } from "../lib/supabase";
+import { getDb, newId, nowIso } from "../lib/db";
+import { fromBool, fromList, mapListing, mapSource, type SqliteRow } from "../lib/db/rows";
 import { getAdapter } from "../sources/registry";
 import { fetchSourcePage } from "../lib/http";
-import type { ListingRow, SourceRow } from "../lib/types";
 
 /**
  * 木曜の処理 (docs/05_OPERATIONS.md)。
@@ -14,7 +14,9 @@ import type { ListingRow, SourceRow } from "../lib/types";
  *
  * 使い方:
  *   npm run ops:extract
- *   npm run ops:extract -- --source=<uuid> --refetch
+ *   npm run ops:extract -- --refetch            … .cache を使わず取り直す
+ *   npm run ops:extract -- --since=2026-09-01   … changed_at がこれ以降の Source を対象にする
+ *   npm run ops:extract -- --source=<id>
  */
 
 function cachedHtml(sourceId: string): string | null {
@@ -35,19 +37,41 @@ function pendingSourceIds(): string[] {
 }
 
 async function main() {
-  const db = supabaseService();
+  const db = await getDb();
   const explicitId = arg("source");
+  const since = arg("since");
   const refetch = flag("refetch");
 
-  const ids = explicitId ? [explicitId] : pendingSourceIds();
-  if (ids.length === 0) {
-    console.log("処理対象がありません。先に npm run ops:check を実行してください。");
-    return;
+  /**
+   * 対象の決め方:
+   *   1. --source=<id> があればそれだけ
+   *   2. --since=<date> があれば changed_at がそれ以降の Source（CI 向け。.cache を共有できないため）
+   *   3. それ以外は .cache に残っている Source（手元での通常運用）
+   */
+  let rows: SqliteRow[];
+  if (explicitId) {
+    rows = await db.all<SqliteRow>("select * from sources where id = ?", [explicitId]);
+  } else if (since) {
+    rows = await db.all<SqliteRow>(
+      "select * from sources where changed_at is not null and changed_at >= ? and status = 'active' and grade <> 'D'",
+      [since]
+    );
+  } else {
+    const ids = pendingSourceIds();
+    if (ids.length === 0) {
+      console.log("処理対象がありません。先に npm run ops:check を実行してください。");
+      console.log("（CI で .cache を共有できない場合は --since=YYYY-MM-DD --refetch を使う）");
+      return;
+    }
+    const placeholders = ids.map(() => "?").join(", ");
+    rows = await db.all<SqliteRow>(`select * from sources where id in (${placeholders})`, ids);
   }
 
-  const { data, error } = await db.from("sources").select("*").in("id", ids);
-  if (error) throw new Error(`sources の取得に失敗しました: ${error.message}`);
-  const sources = (data ?? []) as SourceRow[];
+  const sources = rows.map(mapSource);
+  if (sources.length === 0) {
+    console.log("処理対象がありません。");
+    return;
+  }
 
   let created = 0;
   let updated = 0;
@@ -75,19 +99,17 @@ async function main() {
       continue;
     }
 
-    const { data: existingData } = await db
-      .from("listings")
-      .select("*")
-      .eq("source_url", source.url)
-      .maybeSingle();
-    const existing = existingData as ListingRow | null;
+    const existingRow = await db.first<SqliteRow>("select * from listings where source_url = ?", [
+      source.url
+    ]);
+    const existing = existingRow ? mapListing(existingRow) : null;
 
     // Fact Cache: 確定 Fact が変わっていなければ再判定も更新もしない (D-014)
     if (existing && existing.fact_hash === facts.factHash) {
-      await db
-        .from("listings")
-        .update({ last_verified_at: new Date().toISOString() })
-        .eq("id", existing.id);
+      await db.run("update listings set last_verified_at = ? where id = ?", [
+        nowIso(),
+        existing.id
+      ]);
       console.log(`  ${source.name} — Fact に変更なし（最終確認日のみ更新）`);
       dropCache(source.id);
       continue;
@@ -96,63 +118,70 @@ async function main() {
     const needsReview = facts.reviewReasons.length > 0;
     if (needsReview) review += 1;
 
-    const row = {
+    // 人間が編集した Listing を rule 抽出で上書きしない。事実が変わったことだけ知らせる。
+    if (existing && existing.extraction_method === "human") {
+      await db.run("update listings set status = ?, review_reason = ? where id = ?", [
+        "review_required",
+        "Source の内容が変わりました。人間が編集済みのため自動更新していません。\n" +
+          facts.reviewReasons.join("\n"),
+        existing.id
+      ]);
+      console.log(`△ ${source.name} — 人手編集済みのため要確認にしました`);
+      dropCache(source.id);
+      continue;
+    }
+
+    const values: Record<string, unknown> = {
       source_id: source.id,
       source_url: source.url,
       title: facts.title,
       description: facts.description,
       work_type: facts.workType,
       category: facts.category,
-      physical_work: facts.physicalWork,
+      physical_work: fromBool(facts.physicalWork),
       eligibility_reason: facts.eligibilityReason,
       reward_type: facts.rewardType,
       pay_text: facts.payText,
       pay_min: facts.payMin,
       pay_max: facts.payMax,
       pay_unit: facts.payUnit,
-      expenses_provided: facts.expensesProvided,
+      expenses_provided: fromBool(facts.expensesProvided),
       prefecture: facts.prefecture,
       city: facts.city,
       address: facts.address,
       nearest_station: facts.nearestStation,
-      qualification_required: facts.qualificationRequired,
-      required_qualifications: facts.requiredQualifications,
+      qualification_required: fromBool(facts.qualificationRequired),
+      required_qualifications: fromList(facts.requiredQualifications),
       availability_type: facts.availabilityType,
       event_date: facts.eventDate,
       event_end_date: facts.eventEndDate,
       application_deadline: facts.applicationDeadline,
       work_hours_text: facts.workHoursText,
-      weekend_available: facts.weekendAvailable,
-      safety_flags: facts.safetyFlags,
+      weekend_available: fromBool(facts.weekendAvailable),
+      safety_flags: fromList(facts.safetyFlags),
       fact_hash: facts.factHash,
-      extraction_method: "rule" as const,
-      last_verified_at: new Date().toISOString(),
+      extraction_method: "rule",
+      last_verified_at: nowIso(),
       // rule で全部確定できたものだけ draft（公開は人が押す）。それ以外は review_required
-      status: needsReview ? ("review_required" as const) : ("draft" as const),
+      status: needsReview ? "review_required" : "draft",
       review_reason: needsReview ? facts.reviewReasons.join("\n") : null
     };
 
+    const keys = Object.keys(values);
+
     if (existing) {
-      // 人間が編集した Listing を rule 抽出で上書きしない。事実が変わったことだけ知らせる。
-      if (existing.extraction_method === "human") {
-        await db
-          .from("listings")
-          .update({
-            status: "review_required",
-            review_reason:
-              "Source の内容が変わりました。人間が編集済みのため自動更新していません。\n" +
-              facts.reviewReasons.join("\n")
-          })
-          .eq("id", existing.id);
-        review += 1;
-        console.log(`△ ${source.name} — 人手編集済みのため要確認にしました`);
-      } else {
-        await db.from("listings").update(row).eq("id", existing.id);
-        updated += 1;
-        console.log(`△ ${source.name} — 更新${needsReview ? "（要確認）" : ""}`);
-      }
+      await db.run(
+        `update listings set ${keys.map((key) => `${key} = ?`).join(", ")} where id = ?`,
+        [...keys.map((key) => values[key]), existing.id]
+      );
+      updated += 1;
+      console.log(`△ ${source.name} — 更新${needsReview ? "（要確認）" : ""}`);
     } else {
-      await db.from("listings").insert(row);
+      await db.run(
+        `insert into listings (id, ${keys.join(", ")})
+         values (${["?", ...keys.map(() => "?")].join(", ")})`,
+        [newId(), ...keys.map((key) => values[key])]
+      );
       created += 1;
       console.log(`+ ${source.name} — 新規${needsReview ? "（要確認）" : ""}`);
     }

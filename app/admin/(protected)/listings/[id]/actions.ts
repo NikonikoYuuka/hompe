@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isAdminAuthenticated } from "../../../../../lib/admin-auth";
-import { supabaseService } from "../../../../../lib/supabase";
+import { getDb, nowIso } from "../../../../../lib/db";
+import { fromBool, fromList } from "../../../../../lib/db/rows";
 import type { ListingStatus } from "../../../../../lib/types";
 
 /**
@@ -13,7 +14,7 @@ import type { ListingStatus } from "../../../../../lib/types";
  * 削除は行わない。取り下げは status を closed にする (D-004)。
  */
 
-const NULLABLE_TEXT = [
+const TEXT_FIELDS = [
   "title",
   "description",
   "work_type",
@@ -28,12 +29,14 @@ const NULLABLE_TEXT = [
   "schedule_note",
   "work_hours_text",
   "editorial_note",
-  "review_reason"
+  "review_reason",
+  "event_date",
+  "event_end_date",
+  "application_deadline",
+  "category"
 ] as const;
 
-const NULLABLE_DATE = ["event_date", "event_end_date", "application_deadline"] as const;
-
-const TRISTATE = [
+const BOOL_FIELDS = [
   "physical_work",
   "expenses_provided",
   "qualification_required",
@@ -63,38 +66,43 @@ function list(formData: FormData, key: string): string[] {
     .filter(Boolean);
 }
 
-function requireAdmin() {
-  if (!isAdminAuthenticated()) redirect("/admin/login");
+async function requireAdmin() {
+  if (!(await isAdminAuthenticated())) redirect("/admin/login");
 }
 
 export async function updateListing(id: string, formData: FormData) {
-  requireAdmin();
+  await requireAdmin();
 
-  const patch: Record<string, unknown> = {
-    extraction_method: "human"
+  const columns: string[] = [];
+  const params: unknown[] = [];
+
+  const set = (column: string, value: unknown) => {
+    columns.push(`${column} = ?`);
+    params.push(value);
   };
 
-  for (const key of NULLABLE_TEXT) patch[key] = text(formData, key);
-  for (const key of NULLABLE_DATE) patch[key] = text(formData, key);
-  for (const key of TRISTATE) patch[key] = tristate(formData, key);
+  for (const field of TEXT_FIELDS) set(field, text(formData, field));
+  for (const field of BOOL_FIELDS) set(field, fromBool(tristate(formData, field)));
 
-  patch.category = text(formData, "category");
-  patch.availability_type = text(formData, "availability_type") ?? "unknown";
-  patch.reward_type = text(formData, "reward_type") ?? "unknown";
-  patch.required_qualifications = list(formData, "required_qualifications");
-  patch.purpose_tags = list(formData, "purpose_tags");
-  patch.safety_flags = list(formData, "safety_flags");
+  set("availability_type", text(formData, "availability_type") ?? "unknown");
+  set("reward_type", text(formData, "reward_type") ?? "unknown");
+  set("required_qualifications", fromList(list(formData, "required_qualifications")));
+  set("purpose_tags", fromList(list(formData, "purpose_tags")));
+  set("safety_flags", fromList(list(formData, "safety_flags")));
 
   const payMin = text(formData, "pay_min");
   const payMax = text(formData, "pay_max");
-  patch.pay_min = payMin ? Number(payMin) : null;
-  patch.pay_max = payMax ? Number(payMax) : null;
+  set("pay_min", payMin ? Number(payMin) : null);
+  set("pay_max", payMax ? Number(payMax) : null);
 
+  set("extraction_method", "human");
   // 人間が確認した時点を「最終確認」とする
-  patch.last_verified_at = new Date().toISOString();
+  set("last_verified_at", nowIso());
 
-  const { error } = await supabaseService().from("listings").update(patch).eq("id", id);
-  if (error) throw new Error(`更新に失敗しました: ${error.message}`);
+  params.push(id);
+
+  const db = await getDb();
+  await db.run(`update listings set ${columns.join(", ")} where id = ?`, params);
 
   revalidatePath(`/admin/listings/${id}`);
   revalidatePath("/admin/review");
@@ -102,19 +110,23 @@ export async function updateListing(id: string, formData: FormData) {
 }
 
 export async function setListingStatus(id: string, status: ListingStatus) {
-  requireAdmin();
+  await requireAdmin();
 
-  const patch: Record<string, unknown> = { status };
+  const columns = ["status = ?"];
+  const params: unknown[] = [status];
+
   if (status === "active") {
-    patch.published_at = new Date().toISOString();
-    patch.last_verified_at = new Date().toISOString();
+    columns.push("published_at = ?", "last_verified_at = ?");
+    params.push(nowIso(), nowIso());
   }
   if (status === "closed") {
-    patch.closed_at = new Date().toISOString();
+    columns.push("closed_at = ?");
+    params.push(nowIso());
   }
+  params.push(id);
 
-  const { error } = await supabaseService().from("listings").update(patch).eq("id", id);
-  if (error) throw new Error(`status の変更に失敗しました: ${error.message}`);
+  const db = await getDb();
+  await db.run(`update listings set ${columns.join(", ")} where id = ?`, params);
 
   revalidatePath(`/admin/listings/${id}`);
   revalidatePath("/admin/listings");

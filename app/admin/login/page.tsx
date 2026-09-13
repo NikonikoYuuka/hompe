@@ -6,18 +6,21 @@ import { ADMIN_COOKIE, adminTokenConfigured, verifyAdminToken } from "../../../l
 export const metadata: Metadata = { title: "管理ログイン", robots: { index: false } };
 
 /** V0.1 の管理画面は共有トークン1つで入る (D-015) */
-export default function AdminLoginPage({
+export default async function AdminLoginPage({
   searchParams
 }: {
-  searchParams: { error?: string };
+  searchParams: Promise<{ error?: string }>;
 }) {
+  const { error } = await searchParams;
+  const tokenConfigured = await adminTokenConfigured();
+
   async function login(formData: FormData) {
     "use server";
     const token = String(formData.get("token") ?? "");
-    if (!verifyAdminToken(token)) {
+    if (!(await verifyAdminToken(token))) {
       redirect("/admin/login?error=1");
     }
-    cookies().set(ADMIN_COOKIE, token, {
+    (await cookies()).set(ADMIN_COOKIE, token, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -31,9 +34,9 @@ export default function AdminLoginPage({
     <div className="mx-auto max-w-sm px-5 py-16">
       <h1 className="text-xl font-bold text-ink-50">管理ログイン</h1>
 
-      {!adminTokenConfigured() && (
+      {!tokenConfigured && (
         <p className="mt-4 rounded border border-sweat-500 p-3 text-sm text-sweat-400">
-          ADMIN_TOKEN が設定されていません。.env.local に設定してください。
+          ADMIN_TOKEN が設定されていません。`wrangler secret put ADMIN_TOKEN` で登録してください。
         </p>
       )}
 
@@ -48,7 +51,7 @@ export default function AdminLoginPage({
             className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-3 py-2 text-ink-50"
           />
         </label>
-        {searchParams.error && (
+        {error && (
           <p className="text-sm text-sweat-400">トークンが違います。</p>
         )}
         <button

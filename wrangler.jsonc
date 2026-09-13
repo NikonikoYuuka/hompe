@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nikutai-fukugyou",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-03-25",
+  // OpenNext (Next.js) の実行に必要
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  // D1。database_id は `wrangler d1 create nikutai-fukugyou` の出力で置き換える
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nikutai-fukugyou",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "db/migrations"
+    }
+  ]
+}

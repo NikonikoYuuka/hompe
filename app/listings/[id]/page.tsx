@@ -25,14 +25,16 @@ import { fetchPublicListing } from "../../../lib/listings";
  * 主要 CTA は「公式サイトで詳細を見る」。サイト内応募はしない (D-012)。
  */
 
-export const revalidate = 300;
+// D1 binding はリクエスト時にしか無いので、ビルド時のプリレンダリングを行わない
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const listing = await fetchPublicListing(params.id);
+  const { id } = await params;
+  const listing = await fetchPublicListing(id);
   if (!listing) return { title: "案件が見つかりません" };
   return {
     title: listing.title,
@@ -40,8 +42,9 @@ export async function generateMetadata({
   };
 }
 
-export default async function ListingDetailPage({ params }: { params: { id: string } }) {
-  const listing = await fetchPublicListing(params.id);
+export default async function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const listing = await fetchPublicListing(id);
   if (!listing) notFound();
 
   const facts: Array<{ label: string; value: string }> = [

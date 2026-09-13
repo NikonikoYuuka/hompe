@@ -1,7 +1,7 @@
 /**
  * 肉体副業 V0.1 domain types.
  *
- * DB の enum (supabase/migrations/0002_nikutai_fukugyou.sql) と 1:1 で対応する。
+ * DB の CHECK 制約 (db/migrations/0001_nikutai_fukugyou.sql) と 1:1 で対応する。
  * ここには「Source にある事実」と「lifecycle」だけを置く。編集コピーは editorialNote のみ。
  */
 

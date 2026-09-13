@@ -80,8 +80,13 @@ function TriState({
   );
 }
 
-export default async function AdminListingDetailPage({ params }: { params: { id: string } }) {
-  const listing = await fetchAdminListing(params.id);
+export default async function AdminListingDetailPage({
+  params
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const listing = await fetchAdminListing(id);
   if (!listing) notFound();
 
   const save = updateListing.bind(null, listing.id);

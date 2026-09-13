@@ -1,16 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { collectWeeklyMetrics } from "../../../lib/metrics";
-import { hasSupabaseConfig } from "../../../lib/env";
 
 export const metadata: Metadata = { title: "管理", robots: { index: false } };
 
 /** 件数サマリと週次 metrics (spec §37)。高機能 CMS は作らない。 */
 export default async function AdminHomePage() {
-  if (!hasSupabaseConfig()) {
-    return <p className="text-sm text-sweat-400">Supabase が未設定です。</p>;
-  }
-
   const metrics = await collectWeeklyMetrics();
 
   const groups: Array<{ title: string; rows: Array<[string, number]> }> = [

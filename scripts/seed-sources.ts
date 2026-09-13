@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { arg } from "./_bootstrap";
-import { supabaseService } from "../lib/supabase";
+import { getDb, newId } from "../lib/db";
 import type { SourceGrade, SourceType } from "../lib/types";
 
 /**
@@ -61,7 +61,7 @@ async function main() {
   }
 
   const seeds = JSON.parse(readFileSync(path, "utf8")) as SeedSource[];
-  const db = supabaseService();
+  const db = await getDb();
 
   let inserted = 0;
   let updated = 0;
@@ -85,7 +85,7 @@ async function main() {
       continue;
     }
 
-    const row = {
+    const values: Record<string, unknown> = {
       url: seed.url,
       name: seed.name,
       entity_name: seed.entity_name ?? null,
@@ -101,29 +101,32 @@ async function main() {
       adapter: seed.adapter ?? "generic",
       notes: seed.notes ?? null
     };
+    const keys = Object.keys(values);
 
-    const { data: existing } = await db
-      .from("sources")
-      .select("id")
-      .eq("url", seed.url)
-      .maybeSingle();
+    const existing = await db.first<{ id: string }>("select id from sources where url = ?", [
+      seed.url
+    ]);
 
-    if (existing) {
-      const { error } = await db.from("sources").update(row).eq("id", existing.id);
-      if (error) {
-        console.error(`✗ ${seed.name} — ${error.message}`);
-        continue;
+    try {
+      if (existing) {
+        await db.run(
+          `update sources set ${keys.map((key) => `${key} = ?`).join(", ")} where id = ?`,
+          [...keys.map((key) => values[key]), existing.id]
+        );
+        updated += 1;
+        console.log(`△ ${seed.name} — 更新`);
+      } else {
+        await db.run(
+          `insert into sources (id, ${keys.join(", ")})
+           values (${["?", ...keys.map(() => "?")].join(", ")})`,
+          [newId(), ...keys.map((key) => values[key])]
+        );
+        inserted += 1;
+        console.log(`+ ${seed.name} — 登録`);
       }
-      updated += 1;
-      console.log(`△ ${seed.name} — 更新`);
-    } else {
-      const { error } = await db.from("sources").insert(row);
-      if (error) {
-        console.error(`✗ ${seed.name} — ${error.message}`);
-        continue;
-      }
-      inserted += 1;
-      console.log(`+ ${seed.name} — 登録`);
+    } catch (error) {
+      console.error(`✗ ${seed.name} — ${error instanceof Error ? error.message : String(error)}`);
+      continue;
     }
   }
 

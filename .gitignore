@@ -10,3 +10,8 @@ yarn-error.log*
 .cache
 sources/seed/sources.json
 *.tsbuildinfo
+.open-next
+.wrangler
+cloudflare-env.d.ts
+.dev.vars
+.dev.vars.*

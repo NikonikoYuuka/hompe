@@ -11,8 +11,8 @@ const NAV = [
   { href: "/admin/sources", label: "Source" }
 ];
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  if (!isAdminAuthenticated()) redirect("/admin/login");
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  if (!(await isAdminAuthenticated())) redirect("/admin/login");
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">

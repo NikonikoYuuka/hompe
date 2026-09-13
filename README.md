@@ -23,14 +23,24 @@
 
 ## セットアップ
 
+ホスティングと DB は **Cloudflare（Workers + D1）の無料枠**。
+
 ```bash
 npm install
-cp .env.example .env.local   # Supabase / ADMIN_TOKEN を設定
-npm run dev
+
+# D1 を作り、出力された database_id を wrangler.jsonc に貼る
+npx wrangler d1 create nikutai-fukugyou
+npm run db:migrate:local
+
+# 管理画面用のトークンをローカルに置く（Git 管理外）
+echo 'ADMIN_TOKEN = "任意のランダム文字列"' > .dev.vars
+
+npm run dev        # Next.js の開発サーバ
+npm run preview    # Worker として動かして確認（本番に近い）
 ```
 
-DB は Supabase。`supabase/README.md` の手順で
-`supabase/migrations/0002_nikutai_fukugyou.sql` を適用する。
+デプロイと環境変数の置き場所は `docs/08_ARCHITECTURE.md` §4。
+DB の詳細は `db/README.md`。
 
 ---
 
@@ -72,7 +82,8 @@ lib/extract/    Rule extraction（JSON-LD → 正規表現 → 諦めて review_
 sources/        Source Adapter（V0.1 は generic のみ）
 sources/seed/   初期 Source の登録用 JSON
 scripts/        週次運用コマンド
-supabase/       migration
+db/              D1 のスキーマ（migration）
+.github/         週次運用の GitHub Actions
 tests/          抽出・lifecycle の回帰テスト（npm test）
 docs/           仕様・検証状況・意思決定ログ
 legacy/         このリポジトリに元々あった Retro Homepage Builder の scaffold
@@ -104,8 +115,8 @@ legacy/         このリポジトリに元々あった Retro Homepage Builder �
 AdSense は **環境変数を設定するだけで有効になる**構造にしてある
 （未設定なら広告関連の DOM も script も出ない）。有効化の手順は `docs/09_MONETIZATION.md`。
 
-**注意: hosting は未確定。** Vercel Hobby は規約上 AdSense を掲載できないため、
-選択肢を `docs/08_ARCHITECTURE.md` §4.2 に整理してある。
+ホスティングは Cloudflare Workers。Vercel Hobby は規約上 AdSense を掲載できないため
+採用していない（D-020）。
 
 ---
 
@@ -113,8 +124,14 @@ AdSense は **環境変数を設定するだけで有効になる**構造にし�
 
 ```bash
 npm run dev        # 開発サーバ
-npm run build      # 本番ビルド
+npm run preview    # Worker として動かす（本番に近い）
+npm run deploy     # Cloudflare へデプロイ
+npm run build      # Next.js のビルド
 npm run lint       # ESLint
 npm run typecheck  # tsc --noEmit
-npm test           # 抽出・lifecycle のテスト
+npm test           # 抽出・lifecycle・広告ガードのテスト
+
+npm run db:migrate:local    # D1（ローカル）へスキーマ適用
+npm run db:migrate:remote   # D1（本番）へスキーマ適用
+npm run db:console -- "select ..."
 ```

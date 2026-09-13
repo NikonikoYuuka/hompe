@@ -162,7 +162,7 @@ Source 固有処理は adapter に置く。V0.1 は `generic` adapter のみを�
 ユーザーアカウント機能は作らない。
 
 **Reason**: 運用者は当面1人。認証基盤は MVP の検証対象ではない。
-将来 Supabase Auth へ差し替えられるよう、認証判定を `lib/admin-auth.ts` に閉じる。
+将来 Cloudflare Access 等へ差し替えられるよう、認証判定を `lib/admin-auth.ts` に閉じる。
 
 ---
 
@@ -205,7 +205,7 @@ AdSense 実装によって Product Validation を妨げてはいけない（spec
 
 ## D-019 広告と Listing を構造的に分離する
 
-**Decision**: `lib/ads.ts` は listings / supabase を import しない。
+**Decision**: `lib/ads.ts` は listings / DB を import しない。
 `AdSlot` は Listing のデータを受け取らない。
 一覧では `<ul>` の外にのみ広告を置く。
 
@@ -216,13 +216,37 @@ Fact Layer と Brand Layer を混ぜないのと同じ理由（D-006）。
 
 ---
 
-## D-020 hosting は AdSense の可否を含めて選ぶ（未確定）
+## D-020 hosting / DB は Cloudflare（Workers + D1）の無料枠
 
-**Decision**: hosting をまだ確定させない。Vercel Hobby は AdSense 掲載が
-規約上できないため、選択肢を整理したうえで依頼者の判断を待つ。
+**Decision**: Cloudflare Workers（`@opennextjs/cloudflare`）と Cloudflare D1 を使う。
+Supabase は使わない。
 
-**Reason**: Vercel の Fair Use Guidelines が Hobby を非商用に限定し、
-Google AdSense を commercial usage として名指ししている。
-有料サービスの導入を独断で行わない（spec §45）。
+**Reason**: 依頼者の判断。無料枠に一般的な商用利用禁止条項がないため AdSense を
+掲載できる（Vercel Hobby は Google AdSense を commercial usage として名指しで
+禁止しており使えない）。追加の有料サービスも発生しない。
 
-選択肢と推奨: `docs/08_ARCHITECTURE.md` §4.2。
+**帰結**:
+
+- Next.js を 14 → 15 に上げた（`@opennextjs/cloudflare` の peer 要件が `next >=15.5.24`。
+  Next 14 のサポートは終了済み）
+- D1 は SQLite なので enum / 配列 / boolean の表現が Postgres と異なる。
+  変換は `lib/db/rows.ts` に閉じる
+- RLS が無いので、アクセス制御は「DB アクセスはすべてサーバ側」という構造で担保する
+- 公開ページは `force-dynamic`。D1 binding がリクエスト時にしか存在しないため
+
+---
+
+## D-021 運用スクリプトは Worker の外で動かし、D1 へは REST API で接続する
+
+**Decision**: `ops:*` は GitHub Actions から Node で実行し、D1 REST API を使う。
+Worker の Cron Triggers は使わない。
+
+**Reason**:
+
+- 無料枠の Workers は1回の実行あたり subrequest 50件が上限で、
+  50〜100 Source の巡回を1回で回せない
+- `CLOUDFLARE_API_TOKEN` を Worker に置かずに済む（§48 rule 11）
+- Source crawling と Public serving の分離（§48 rule 4）がそのまま保たれる
+
+DB ドライバは `lib/db.ts` のインターフェースで抽象化し、
+Worker 側（binding）とスクリプト側（REST）で同じクエリコードを使う。

@@ -1,4 +1,4 @@
-import { supabaseService } from "./supabase";
+import { getDb, type Db } from "./db";
 
 /**
  * Weekly metrics (spec §37)。
@@ -29,62 +29,43 @@ export interface WeeklyMetrics {
   page_view: number;
 }
 
-async function countRows(
-  table: string,
-  build: (query: any) => any
-): Promise<number> {
-  const query = build(supabaseService().from(table).select("*", { count: "exact", head: true }));
-  const { count, error } = await query;
-  if (error) {
-    console.error(`[metrics] ${table} の集計に失敗しました:`, error.message);
-    return 0;
-  }
-  return count ?? 0;
+async function count(db: Db, sql: string, params: unknown[] = []): Promise<number> {
+  const row = await db.first<{ count: number }>(sql, params);
+  return Number(row?.count ?? 0);
 }
 
 export async function collectWeeklyMetrics(days = 7): Promise<WeeklyMetrics> {
+  const db = await getDb();
   const end = new Date();
   const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
   const since = start.toISOString();
 
-  const [
-    checked,
-    changed,
-    failed,
-    expired,
-    closed,
-    reviewRequired,
-    ruleOnly,
-    humanReviewed,
-    published,
-    listingView,
-    officialClick,
-    pageView
-  ] = await Promise.all([
-    countRows("source_checks", (q) => q.gte("checked_at", since)),
-    countRows("source_checks", (q) => q.gte("checked_at", since).eq("changed", true)),
-    countRows("source_checks", (q) => q.gte("checked_at", since).not("error", "is", null)),
+  const checked = await count(db, "select count(*) as count from source_checks where checked_at >= ?", [since]);
+  const changed = await count(db, "select count(*) as count from source_checks where checked_at >= ? and changed = 1", [since]);
+  const failed = await count(db, "select count(*) as count from source_checks where checked_at >= ? and error is not null", [since]);
 
-    countRows("listings", (q) => q.eq("status", "expired").gte("updated_at", since)),
-    countRows("listings", (q) => q.eq("status", "closed").gte("updated_at", since)),
-    countRows("listings", (q) => q.eq("status", "review_required")),
+  const expired = await count(db, "select count(*) as count from listings where status = 'expired' and updated_at >= ?", [since]);
+  const closed = await count(db, "select count(*) as count from listings where status = 'closed' and updated_at >= ?", [since]);
+  const reviewRequired = await count(db, "select count(*) as count from listings where status = 'review_required'");
 
-    // rule だけで確定できたもの（review を経ずに公開に到達した件数）
-    countRows("listings", (q) =>
-      q.eq("extraction_method", "rule").eq("status", "active").gte("updated_at", since)
-    ),
-    // 人間が触ったもの
-    countRows("listings", (q) => q.eq("extraction_method", "human").gte("updated_at", since)),
-    countRows("listings", (q) => q.eq("status", "active")),
+  // rule だけで確定できたもの（人手を経ずに公開に到達した件数）
+  const ruleOnly = await count(
+    db,
+    "select count(*) as count from listings where extraction_method = 'rule' and status = 'active' and updated_at >= ?",
+    [since]
+  );
+  const humanReviewed = await count(
+    db,
+    "select count(*) as count from listings where extraction_method = 'human' and updated_at >= ?",
+    [since]
+  );
+  const published = await count(db, "select count(*) as count from listings where status = 'active'");
 
-    countRows("analytics_events", (q) =>
-      q.gte("created_at", since).eq("event_type", "listing_view")
-    ),
-    countRows("analytics_events", (q) =>
-      q.gte("created_at", since).eq("event_type", "official_source_click")
-    ),
-    countRows("analytics_events", (q) => q.gte("created_at", since).eq("event_type", "page_view"))
-  ]);
+  const events = await db.all<{ event_type: string; count: number }>(
+    "select event_type, count(*) as count from analytics_events where created_at >= ? group by event_type",
+    [since]
+  );
+  const byType = Object.fromEntries(events.map((row) => [row.event_type, Number(row.count)]));
 
   return {
     periodStart: since.slice(0, 10),
@@ -103,8 +84,8 @@ export async function collectWeeklyMetrics(days = 7): Promise<WeeklyMetrics> {
     human_review_required: humanReviewed,
     published_listings: published,
 
-    listing_view: listingView,
-    official_source_click: officialClick,
-    page_view: pageView
+    listing_view: byType.listing_view ?? 0,
+    official_source_click: byType.official_source_click ?? 0,
+    page_view: byType.page_view ?? 0
   };
 }

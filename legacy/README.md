@@ -18,7 +18,10 @@
 | `legacy/retro-homepage/image.ts` | `lib/image.ts` |
 | `legacy/retro-homepage/supabase-client.ts` | `lib/supabase-client.ts` |
 
-`supabase/migrations/0001_diary_entries.sql` は移動していません。
-肉体副業用の Supabase プロジェクトでは `0002` のみ適用してください。
+| `legacy/retro-homepage/supabase/` | `supabase/` |
+
+肉体副業は Supabase を使いません（Cloudflare D1 を使います。`db/README.md`）。
+この scaffold を復元する場合は `@supabase/supabase-js` `@supabase/auth-helpers-nextjs`
+`sharp` を再インストールしてください（肉体副業では不要なため削除済みです）。
 
 このディレクトリは Next.js のルーティング対象外であり、ビルドにも含まれません。

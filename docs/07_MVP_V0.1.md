@@ -11,7 +11,7 @@
 | framework | Next.js 14.1 App Router / React 18 / TypeScript (strict) |
 | package manager | npm（`package-lock.json` あり） |
 | styling | Tailwind CSS 3.4 + `styles/globals.css` |
-| DB | Supabase (Postgres)。`supabase/migrations/0001_diary_entries.sql` に `diary_entries` |
+| DB | Supabase (Postgres)。`supabase/migrations/0001_diary_entries.sql` に `diary_entries`（肉体副業では使わない） |
 | auth | `@supabase/auth-helpers-nextjs`（`lib/supabase-client.ts`。server client の呼び出しは未完成） |
 | hosting / CI/CD | 設定なし |
 | tests | なし |
@@ -22,20 +22,21 @@
 ### GAP 分析
 
 **既存リポジトリは肉体副業とは別プロダクトである。** 再利用できるのは
-プロダクト機能ではなく **技術基盤**（Next.js App Router / TypeScript / Tailwind / Supabase / npm）。
+プロダクト機能ではなく **技術基盤**（Next.js App Router / TypeScript / Tailwind / npm）。
+DB とホスティングは Cloudflare（Workers + D1）へ差し替えた（D-020）。
 
 | 仕様要件 | 既存コード | 判断 |
 | --- | --- | --- |
 | Next.js + TS + Tailwind | あり | **そのまま再利用**。framework migration はしない |
-| Supabase Postgres | あり（別テーブル） | **接続方式を再利用**。肉体副業のテーブルは新規 migration で追加 |
-| Supabase client | `lib/supabase-client.ts`（auth-helpers、server client の引数が不正） | 公開側は認証不要のため `@supabase/supabase-js` を直接使う `lib/supabase.ts` を新設。既存ファイルは触らない |
+| DB | Supabase (Postgres) | **採用しない**。Cloudflare D1（SQLite）へ差し替え（D-020）。`db/migrations/0001_nikutai_fukugyou.sql` |
+| DB クライアント | `lib/supabase-client.ts`（auth-helpers、server client の引数が不正） | 使わない。`lib/db.ts` で D1 binding / REST API の2ドライバを抽象化 |
 | Source crawl / 変更検知 | なし | 新規（`lib/source-check.ts` + `scripts/`） |
 | Listing / Source / Check スキーマ | なし | 新規 migration `0002` |
 | Admin | なし | 新規（`/admin`、`ADMIN_TOKEN` 共有トークン [D-015]） |
 | Analytics | なし | 新規（`analytics_events` + `/api/track`） |
 | 画像処理 (`sharp`) | 依存あり | **V0.1 では使わない**。依存は残す（既存 diary 用） |
 | AdSense | なし | 新規（`lib/ads.ts` + `AdSlot`）。ID は環境変数のみ |
-| hosting / CI・CD | 設定なし | **未確定**。`08_ARCHITECTURE.md` §4.2 に選択肢を整理し判断待ち |
+| hosting / CI・CD | 設定なし | 新規。Cloudflare Workers + GitHub Actions（`08_ARCHITECTURE.md` §4） |
 
 ### 既存コードの扱い
 
@@ -43,12 +44,12 @@
 - retro homepage の scaffold（`(auth)` / `(dashboard)` / `api/diary` / `lib/image.ts` / 旧 TOP）は
   削除せず `legacy/retro-homepage/` に退避し、`legacy/README.md` に経緯を残す。
   → 別リポジトリへ分離する際に復元できる。
-- `supabase/migrations/0001_diary_entries.sql` は残す。肉体副業用の Supabase プロジェクトでは
-  `0002` のみ適用すればよい（`supabase/README.md` に明記）。
+- `supabase/` 一式（diary の migration 含む）は `legacy/retro-homepage/supabase/` へ退避。
+  肉体副業のスキーマは `db/migrations/`（`db/README.md`）。
 
 > **注意（未確定事項）**: ユーザーは「まだリポジトリを新しく作っていない」と述べている。
-> 肉体副業を専用リポジトリへ分離する場合、`docs/` `lib/` `sources/` `scripts/` `supabase/migrations/0002_*`
-> `app/`（legacy を除く）をそのまま移せる構成にしてある。
+> 肉体副業を専用リポジトリへ分離する場合、`docs/` `lib/` `sources/` `scripts/` `db/`
+> `app/` `wrangler.jsonc` `open-next.config.ts` `.github/` をそのまま移せる構成にしてある。
 
 ---
 
@@ -56,7 +57,7 @@
 
 ### DB
 
-`supabase/migrations/0002_nikutai_fukugyou.sql`
+`db/migrations/0001_nikutai_fukugyou.sql`（Cloudflare D1 / SQLite）
 
 | table | 役割 |
 | --- | --- |
@@ -157,12 +158,12 @@ OpenAI API / AI 抽出 / X API 自動投稿 / 記事 CMS / user account / 応募
 
 | risk | 対応 |
 | --- | --- |
-| Vercel Hobby は AdSense 掲載が規約違反になる | 判断待ち。広告なしで Demand Validation を先に回せば Hobby でも問題ない（`08_ARCHITECTURE.md` §4.2） |
+| Workers の無料枠は1リクエスト CPU 10ms | SSR は主に I/O 待ちで CPU をほぼ使わない。実測で足りなければ公開ページに Cache API を入れる |
 | 広告配置が `official_source_click` を下げる | 1ページ1枠、CTA から離す、一覧の中に入れない。数値を metrics で監視する |
 | 公式採用ページの HTML 構造が Source ごとにバラバラで rule 抽出が通らない | 目標を「全対応」に置かない。抽出不能は `review_required`。率を実測して AI 導入判断の材料にする |
 | ページ全体 hash だと軽微な変更でも `changed` になる | normalize で noise を落とす。それでも多い場合は本文領域の絞り込みを adapter 側で行う（Source 単位で `content_selector` を保持） |
 | grade C の Source が多く、自動公開できる件数が伸びない | 想定内。grade A/B の獲得（許可取得・提携）が次の打ち手 |
-| 50〜100件で無料枠に収まるか | Supabase 無料枠内。`analytics_events` と `source_checks` のみ行数が伸びるため、週次集計後の間引き手順を `05_OPERATIONS.md` に記載 |
+| 50〜100件で無料枠に収まるか | Cloudflare D1 無料枠内（5GB / 読み 500万行・書き 10万行 per day）。`analytics_events` と `source_checks` のみ行数が伸びるため、週次集計後の間引き手順を `05_OPERATIONS.md` に記載 |
 | Demand が出ない | それが V0.1 の検証目的。Official Source Click で判断する |
 
 ---

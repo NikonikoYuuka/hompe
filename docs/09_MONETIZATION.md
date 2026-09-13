@@ -52,7 +52,8 @@ AdSense のポリシー上、第三者配信事業者が Cookie を使用して�
 Vercel の Fair Use Guidelines が Hobby を非商用の個人利用に限定し、
 広告掲載（Google AdSense を名指し）を commercial usage として例示している。
 
-→ `docs/08_ARCHITECTURE.md` §4.2 に選択肢を整理。**hosting の判断待ち**。
+→ **Cloudflare Workers + D1 の無料枠を採用した（D-020）。**
+Cloudflare の無料枠には一般的な商用利用禁止条項がないため、AdSense を掲載できる。
 
 出典:
 - [Vercel Fair Use Guidelines](https://vercel.com/docs/limits/fair-use-guidelines)
@@ -94,7 +95,7 @@ ID を一切ハードコードしていない（`lib/ads.ts`）。
 
 | ファイル | 役割 |
 | --- | --- |
-| `lib/ads.ts` | 設定と判断のみ。**listings / supabase を import しない**（§48 rule 13、テストで検証） |
+| `lib/ads.ts` | 設定と判断のみ。**listings / DB を import しない**（§48 rule 13、テストで検証） |
 | `app/_components/ad-script.tsx` | AdSense script を root layout で **1回だけ** 読み込む |
 | `app/_components/ad-slot.tsx` | 再利用可能な広告枠。Listing のデータを受け取らない |
 | `app/ads.txt/route.ts` | ads.txt を環境変数から生成。未設定なら 404 |
@@ -131,13 +132,15 @@ ID を一切ハードコードしていない（`lib/ads.ts`）。
 
 ## 3. 有効化の手順
 
-1. hosting を決める（`docs/08_ARCHITECTURE.md` §4.2）。**Vercel Hobby は不可**
+1. Cloudflare へデプロイする（`docs/08_ARCHITECTURE.md` §4.2）
 2. AdSense でサイトを追加し、審査を通す
 3. AdSense 管理画面 →「プライバシーとメッセージ」→ 欧州の規制に関する
    メッセージを有効化（Google の CMP を使う）
 4. 広告ユニットを作成し、スロット ID を控える
 5. `/privacy` の連絡先を実際の窓口に書き換える
-6. production 環境に環境変数を設定する
+6. `NEXT_PUBLIC_ADSENSE_*` と `NEXT_PUBLIC_ADS_ENABLED=true` を
+   **ビルド時の環境変数**として設定し、デプロイし直す
+   （`NEXT_PUBLIC_*` はビルドに焼き込まれるので Worker の変数にしても効かない）
 7. `/ads.txt` が 200 を返すことを確認する
 
 コードの変更は不要。

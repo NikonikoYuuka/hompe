@@ -9,7 +9,8 @@ import { fetchWeekendListings, fetchPublicListings } from "../lib/listings";
  * ただし個別案件の事実は必ず ListingCard（Fact Layer）経由で出す (D-006)。
  */
 
-export const revalidate = 300;
+// D1 binding はリクエスト時にしか無いので、ビルド時のプリレンダリングを行わない
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const [weekend, latest] = await Promise.all([

@@ -33,6 +33,13 @@ function loadEnvFile(filename: string): void {
 loadEnvFile(".env.local");
 loadEnvFile(".env");
 
+// 運用スクリプトは Worker の外で動くので、D1 へは REST API 経由で接続する
+// （docs/08_ARCHITECTURE.md §4.3）
+import { setDb } from "../lib/db";
+import { httpDb } from "../lib/db/http";
+
+setDb(httpDb());
+
 /** コマンドライン引数 --key=value / --flag を読む */
 export function arg(name: string): string | undefined {
   const prefix = `--${name}`;

@@ -1,10 +1,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CACHE_DIR, arg, flag } from "./_bootstrap";
-import { supabaseService } from "../lib/supabase";
+import { getDb, nowIso } from "../lib/db";
+import { mapSource, type SqliteRow } from "../lib/db/rows";
 import { getAdapter } from "../sources/registry";
 import { judgeFromHttpStatus } from "../lib/lifecycle";
-import type { SourceRow } from "../lib/types";
 
 /**
  * 月〜水の巡回 (spec §23 / docs/05_OPERATIONS.md)。
@@ -14,30 +14,31 @@ import type { SourceRow } from "../lib/types";
  *
  * 使い方:
  *   npm run ops:check
- *   npm run ops:check -- --source=<uuid>
+ *   npm run ops:check -- --source=<id>
  *   npm run ops:check -- --limit=10
  */
 
 async function main() {
-  const db = supabaseService();
+  const db = await getDb();
   const limit = Number(arg("limit") ?? 200);
   const sourceId = arg("source");
 
-  let query = db
-    .from("sources")
-    .select("*")
-    .eq("status", "active")
-    // grade D は利用不可なので取得対象から外す (docs/03_SOURCE_POLICY.md)
-    .neq("grade", "D")
-    .order("checked_at", { ascending: true, nullsFirst: true })
-    .limit(limit);
+  // grade D は利用不可なので取得対象から外す (docs/03_SOURCE_POLICY.md)
+  const where = ["status = 'active'", "grade <> 'D'"];
+  const params: unknown[] = [];
+  if (sourceId) {
+    where.push("id = ?");
+    params.push(sourceId);
+  }
+  params.push(limit);
 
-  if (sourceId) query = query.eq("id", sourceId);
+  const rows = await db.all<SqliteRow>(
+    `select * from sources where ${where.join(" and ")}
+     order by (checked_at is not null), checked_at asc limit ?`,
+    params
+  );
+  const sources = rows.map(mapSource);
 
-  const { data, error } = await query;
-  if (error) throw new Error(`sources の取得に失敗しました: ${error.message}`);
-
-  const sources = (data ?? []) as SourceRow[];
   if (sources.length === 0) {
     console.log("対象の Source がありません。");
     return;
@@ -47,60 +48,70 @@ async function main() {
 
   let changed = 0;
   let failed = 0;
-  const now = new Date().toISOString();
+  const now = nowIso();
 
   for (const source of sources) {
     const adapter = getAdapter(source.adapter);
     const outcome = await adapter.check(source);
 
-    await db.from("source_checks").insert({
-      source_id: source.id,
-      http_status: outcome.httpStatus,
-      content_hash: outcome.contentHash,
-      changed: outcome.changed,
-      attempt: outcome.attempts,
-      duration_ms: outcome.durationMs,
-      error: outcome.error
-    });
-
-    const patch: Record<string, unknown> = {
-      checked_at: now,
-      last_http_status: outcome.httpStatus
-    };
+    await db.run(
+      `insert into source_checks
+         (source_id, checked_at, http_status, content_hash, changed, attempt, duration_ms, error)
+       values (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        source.id,
+        now,
+        outcome.httpStatus,
+        outcome.contentHash,
+        outcome.changed ? 1 : 0,
+        outcome.attempts,
+        outcome.durationMs,
+        outcome.error
+      ]
+    );
 
     if (outcome.error) {
       failed += 1;
-      patch.consecutive_failures = source.consecutive_failures + 1;
+      await db.run(
+        `update sources
+           set checked_at = ?, last_http_status = ?, consecutive_failures = consecutive_failures + 1
+         where id = ?`,
+        [now, outcome.httpStatus, source.id]
+      );
       console.log(`✗ ${source.name} — ${outcome.error} (HTTP ${outcome.httpStatus ?? "-"})`);
-    } else {
-      patch.consecutive_failures = 0;
-      patch.last_content_hash = outcome.contentHash;
-      if (outcome.changed) {
-        changed += 1;
-        patch.changed_at = now;
-        if (outcome.html) {
-          writeFileSync(join(CACHE_DIR, `${source.id}.html`), outcome.html, "utf8");
-        }
-        console.log(`△ ${source.name} — 変更あり`);
-      } else {
-        console.log(`  ${source.name} — 変更なし`);
+    } else if (outcome.changed) {
+      changed += 1;
+      await db.run(
+        `update sources
+           set checked_at = ?, last_http_status = ?, consecutive_failures = 0,
+               last_content_hash = ?, changed_at = ?
+         where id = ?`,
+        [now, outcome.httpStatus, outcome.contentHash, now, source.id]
+      );
+      if (outcome.html) {
+        writeFileSync(join(CACHE_DIR, `${source.id}.html`), outcome.html, "utf8");
       }
+      console.log(`△ ${source.name} — 変更あり`);
+    } else {
+      await db.run(
+        `update sources
+           set checked_at = ?, last_http_status = ?, consecutive_failures = 0, last_content_hash = ?
+         where id = ?`,
+        [now, outcome.httpStatus, outcome.contentHash, source.id]
+      );
+      console.log(`  ${source.name} — 変更なし`);
     }
-
-    await db.from("sources").update(patch).eq("id", source.id);
 
     // 404 / 410 は即 closed にせず、その Source の Listing を review に回す
     const decision = judgeFromHttpStatus(outcome.httpStatus);
     if (decision) {
-      const { error: updateError } = await db
-        .from("listings")
-        .update({ status: decision.status, review_reason: decision.reason })
-        .eq("source_id", source.id)
-        .in("status", ["active", "scheduled", "draft"]);
-      if (updateError) {
-        console.error(`  listing の更新に失敗: ${updateError.message}`);
-      } else {
-        console.log(`  → 関連 Listing を要確認にしました（${decision.reason}）`);
+      const result = await db.run(
+        `update listings set status = ?, review_reason = ?
+         where source_id = ? and status in ('active', 'scheduled', 'draft')`,
+        [decision.status, decision.reason, source.id]
+      );
+      if (result.changes > 0) {
+        console.log(`  → 関連 Listing ${result.changes}件を要確認にしました（${decision.reason}）`);
       }
     }
   }

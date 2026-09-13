@@ -154,9 +154,9 @@ npm run ops:metrics
 週次 metrics を `docs/reports/` に記録したあとであれば、古い行は消してよい
 （Listing / Source は消さない D-004）。
 
-```sql
-delete from public.analytics_events where created_at < now() - interval '180 days';
-delete from public.source_checks    where checked_at < now() - interval '180 days';
+```bash
+npm run db:console -- "delete from analytics_events where created_at < date('now', '-180 days')"
+npm run db:console -- "delete from source_checks    where checked_at < date('now', '-180 days')"
 ```
 
 ## 人手作業の記録

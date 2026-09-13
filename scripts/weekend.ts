@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import "./_bootstrap";
-import { supabaseService } from "../lib/supabase";
+import { getDb } from "../lib/db";
+import { mapListing, type SqliteRow } from "../lib/db/rows";
 import { upcomingWeekend } from "../lib/lifecycle";
 import { CATEGORY_LABELS, formatDate, locationText, rewardText } from "../lib/labels";
 import type { ListingRow } from "../lib/types";
@@ -43,33 +44,30 @@ function postFor(listing: ListingRow, index: number): string {
 }
 
 async function main() {
-  const db = supabaseService();
+  const db = await getDb();
   const { saturday, sunday } = upcomingWeekend();
 
   // 日付が確定しているもの（今週末）
-  const { data: fixedData, error: fixedError } = await db
-    .from("listings")
-    .select("*")
-    .eq("status", "active")
-    .eq("availability_type", "fixed_date")
-    .gte("event_date", saturday)
-    .lte("event_date", sunday)
-    .order("event_date", { ascending: true });
-  if (fixedError) throw new Error(fixedError.message);
+  const fixedRows = await db.all<SqliteRow>(
+    `select * from listings
+     where status = 'active' and availability_type = 'fixed_date'
+       and event_date >= ? and event_date <= ?
+     order by event_date asc`,
+    [saturday, sunday]
+  );
 
   // 土日に働けると Source に記載があるもの（「今週末働ける」とは書かない D-005）
-  const { data: recurringData, error: recurringError } = await db
-    .from("listings")
-    .select("*")
-    .eq("status", "active")
-    .in("availability_type", ["recurring", "registration"])
-    .eq("weekend_available", true)
-    .order("updated_at", { ascending: false })
-    .limit(10);
-  if (recurringError) throw new Error(recurringError.message);
+  const recurringRows = await db.all<SqliteRow>(
+    `select * from listings
+     where status = 'active'
+       and availability_type in ('recurring', 'registration')
+       and weekend_available = 1
+     order by updated_at desc
+     limit 10`
+  );
 
-  const fixed = (fixedData ?? []) as ListingRow[];
-  const recurring = (recurringData ?? []) as ListingRow[];
+  const fixed = fixedRows.map(mapListing);
+  const recurring = recurringRows.map(mapListing);
 
   // 投稿候補は 3〜5本。日付が確定しているものを優先する。
   const picks = [...fixed, ...recurring].slice(0, 5);

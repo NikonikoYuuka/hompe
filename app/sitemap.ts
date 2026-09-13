@@ -5,7 +5,7 @@ import { fetchPublicListings } from "../lib/listings";
  * 公開中の Listing だけを載せる。
  * expired / closed は archive として DB に残すが、index させない (D-004)。
  */
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.NEXT_PUBLIC_SITE_URL;
