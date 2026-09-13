@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: dark;
+}
+
 body {
-  font-family: 'Trebuchet MS', 'Yu Gothic', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;
+}
+
+@layer components {
+  /* Fact Layer の定義リスト。値は Source 由来の事実のみを入れる (D-006) */
+  .fact-row {
+    @apply grid grid-cols-[6.5rem_1fr] gap-x-4 gap-y-1 border-b border-ink-800 py-3 text-sm sm:grid-cols-[8rem_1fr];
+  }
+  .fact-label {
+    @apply text-ink-400;
+  }
+  .fact-value {
+    @apply text-ink-50;
+  }
 }

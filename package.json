@@ -1,12 +1,20 @@
 {
-  "name": "retro-homepage-app",
+  "name": "nikutai-fukugyou",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "ops:seed": "tsx scripts/seed-sources.ts",
+    "ops:check": "tsx scripts/check-sources.ts",
+    "ops:extract": "tsx scripts/extract.ts",
+    "ops:lifecycle": "tsx scripts/lifecycle.ts",
+    "ops:weekend": "tsx scripts/weekend.ts",
+    "ops:metrics": "tsx scripts/metrics.ts"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.8.6",
@@ -25,6 +33,8 @@
     "eslint-config-next": "14.1.0",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.3.3"
-  }
+  },
+  "description": "肉体副業 — 週末に身体を使ってできる仕事・ボランティアを公式の募集情報から集めて紹介する編集メディア (V0.1)"
 }

@@ -1,0 +1,35 @@
+[
+  {
+    "_comment": "このファイルはテンプレートです。sources.json にコピーして実在の Source を書いてください。Source Gate (docs/03_SOURCE_POLICY.md §4) を確認してから登録します。",
+    "url": "https://example-farm.co.jp/recruit/weekend-harvest",
+    "name": "◯◯農園 採用ページ（週末収穫）",
+    "entity_name": "株式会社◯◯農園",
+    "source_type": "employer_official",
+    "grade": "C",
+    "acquisition_method": "http_fetch",
+    "terms_url": "https://example-farm.co.jp/terms",
+    "terms_notes": "自動取得・再利用の可否について記載なし → grade C。自動公開せず review を通す",
+    "robots_notes": "robots.txt に /recruit の Disallow なし（利用規約とは別問題として記録）",
+    "permission_notes": "未取得",
+    "removal_contact": "https://example-farm.co.jp/contact",
+    "discovery_origin": "あぐりナビで社名を知り、公式採用ページに到達（Fact は公式ページから取得）",
+    "adapter": "generic",
+    "notes": ""
+  },
+  {
+    "url": "https://www.example-city.lg.jp/volunteer/river-cleanup",
+    "name": "◯◯市 河川清掃ボランティア募集",
+    "entity_name": "◯◯市役所 環境課",
+    "source_type": "municipal",
+    "grade": "C",
+    "acquisition_method": "http_fetch",
+    "terms_url": "https://www.example-city.lg.jp/site-policy",
+    "terms_notes": "「公的だから自由利用可能」と決めつけず、サイトポリシーの転載条件を確認すること",
+    "robots_notes": "",
+    "permission_notes": "未取得",
+    "removal_contact": "環境課 代表電話",
+    "discovery_origin": "自治体サイトの募集一覧から直接",
+    "adapter": "generic",
+    "notes": "fixed-date 案件の供給源として有望（docs/01_VALIDATION.md）"
+  }
+]
