@@ -112,13 +112,13 @@ export function extractDate(text: string, label?: RegExp): Extracted<string> | n
   if (!scope) return null;
 
   const withYear = /(20\d{2})\s*[年/\-.]\s*(\d{1,2})\s*[月/\-.]\s*(\d{1,2})\s*日?/.exec(scope);
-  if (withYear) {
+  if (withYear && looksLikeScheduleDate(scope, withYear.index)) {
     const iso = toIso(Number(withYear[1]), Number(withYear[2]), Number(withYear[3]));
     if (iso) return extracted(iso, "high", snippet(scope, withYear.index, withYear[0].length));
   }
 
   const withoutYear = /(?<!\d)(\d{1,2})\s*[月/]\s*(\d{1,2})\s*日?(?!\d)/.exec(scope);
-  if (withoutYear) {
+  if (withoutYear && looksLikeScheduleDate(scope, withoutYear.index)) {
     const month = Number(withoutYear[1]);
     const day = Number(withoutYear[2]);
     const iso = nextOccurrence(month, day);
@@ -130,11 +130,31 @@ export function extractDate(text: string, label?: RegExp): Extracted<string> | n
   return null;
 }
 
-/** ラベル（「応募締切」等）の周辺だけを切り出す */
+/**
+ * ラベル（「応募締切」等）の周辺だけを切り出す。
+ *
+ * 窓を広く取ると、ラベルとは無関係な「このページの最終更新日 2026/03/01」まで
+ * 拾って開催日にしてしまう（そして fixed_date に昇格し、確定日として表示される）。
+ */
+const LABEL_WINDOW = 24;
+
+/**
+ * 日付の直前にこれらの語があれば、その日付は募集の日程ではない。
+ *
+ * 「最終更新日 2026/03/01」「ver 2026.10.5」「日時 未定（…）」など。
+ */
+const NOT_A_SCHEDULE_DATE = /(更新|掲載|公開|作成|改定|発行|ver\.?|version|未定|前回|copyright)/i;
+
 function sliceAroundLabel(text: string, label: RegExp): string | null {
   const match = label.exec(text);
   if (!match) return null;
-  return text.slice(match.index, match.index + match[0].length + 60);
+  return text.slice(match.index, match.index + match[0].length + LABEL_WINDOW);
+}
+
+/** 日付の直前 12 文字を見て、募集の日程として読んでよいか判断する */
+function looksLikeScheduleDate(scope: string, dateIndex: number): boolean {
+  const before = scope.slice(Math.max(0, dateIndex - 12), dateIndex);
+  return !NOT_A_SCHEDULE_DATE.test(before);
 }
 
 export const DEADLINE_LABEL = /(応募締切|募集締切|申込締切|締切|応募期限|申込期限)/;

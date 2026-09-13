@@ -161,6 +161,7 @@ listings（確定 Fact）
 | Database | **Cloudflare D1（無料枠）** | SQLite。`db/migrations/` |
 | Source checking | Node スクリプト（`scripts/`） | Worker の外。AI を使わない |
 | Scheduled job | GitHub Actions（`.github/workflows/ops.yml`） | D1 へは REST API で接続 |
+| CI | GitHub Actions（`.github/workflows/ci.yml`） | PR と push で typecheck / test / lint / migration / build |
 | Analytics | 自前（`analytics_events`） | 外部サービスを増やさない。個人情報を持たない |
 | AI | production runtime では不使用 | D-001 |
 

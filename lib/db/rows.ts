@@ -8,7 +8,9 @@ import type { ListingRow, SourceCheckRow, SourceRow } from "../types";
  *   - JSON 文字列      → string[]
  */
 
-export type SqliteRow = Record<string, unknown>;
+export type { SqliteRow } from "../db";
+
+type Row = Record<string, unknown>;
 
 /** 0/1/NULL を boolean | null に。NULL を false に潰さないこと (D-011) */
 export function toBool(value: unknown): boolean | null {
@@ -44,7 +46,7 @@ function str(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value);
 }
 
-export function mapSource(row: SqliteRow): SourceRow {
+export function mapSource(row: Row): SourceRow {
   return {
     id: String(row.id),
     url: String(row.url),
@@ -73,7 +75,7 @@ export function mapSource(row: SqliteRow): SourceRow {
   };
 }
 
-export function mapListing(row: SqliteRow): ListingRow {
+export function mapListing(row: Row): ListingRow {
   return {
     id: String(row.id),
     source_id: String(row.source_id),
@@ -134,7 +136,7 @@ export function mapListing(row: SqliteRow): ListingRow {
   };
 }
 
-export function mapSourceCheck(row: SqliteRow): SourceCheckRow {
+export function mapSourceCheck(row: Row): SourceCheckRow {
   return {
     id: Number(row.id),
     source_id: String(row.source_id),

@@ -82,23 +82,66 @@ function take<T>(
  *
  * 「土日勤務可能」しか書かれていないものを fixed_date にしない。
  */
+const REGISTRATION_SIGNAL = /(登録制|登録者募集|スタッフ登録|登録後|事前登録)/;
+const RECURRING_SIGNAL = /(週\s*[1-7１-７]\s*回|毎週|随時募集|シフト制|定期的に)/;
+
 function judgeAvailability(
   text: string,
   eventDate: string | null
 ): { type: AvailabilityType; reason: string | null } {
-  if (eventDate) return { type: "fixed_date", reason: null };
+  const registration = REGISTRATION_SIGNAL.test(text);
+  const recurring = RECURRING_SIGNAL.test(text);
 
-  if (/(登録制|登録者募集|スタッフ登録|登録後|事前登録)/.test(text)) {
-    return { type: "registration", reason: null };
+  if (eventDate) {
+    /**
+     * 日付が取れても、定期募集・登録制の記載が同居しているなら fixed_date にしない。
+     *
+     * 「勤務日：シフト制」のページから拾った日付を確定日として表示すると、
+     * 「その日に行けば作業がある」と読まれる (D-005)。どちらが本当かは人間が決める。
+     */
+    if (registration || recurring) {
+      return {
+        type: "unknown",
+        reason:
+          "日付と、定期募集・登録制の記載が同居している。" +
+          "確定日として出してよいかを人間が確認する必要がある"
+      };
+    }
+    return { type: "fixed_date", reason: null };
   }
-  if (/(週\s*[1-7１-７]\s*回|毎週|随時募集|シフト制|定期的に)/.test(text)) {
-    return { type: "recurring", reason: null };
-  }
+
+  if (registration) return { type: "registration", reason: null };
+  if (recurring) return { type: "recurring", reason: null };
+
   return {
     type: "unknown",
     reason: "開催日も募集形態（登録制 / 定期）も特定できなかった"
   };
 }
+
+/**
+ * 抽出が Listing を作らなかった理由。
+ *
+ * どのゲートで落ちたかを運用ログで数えられるようにする。
+ * 「対象外 N件」だけでは、供給が減った原因が
+ * 仕事内容なのか雇用形態なのか分からず、D-026 の閾値を見直す判断ができない。
+ */
+export type RejectGate =
+  | "too_short" // 本文が短すぎる
+  | "no_title" // タイトルを特定できない
+  | "not_physical_work" // 身体を使う仕事ではない (D-007)
+  | "not_side_job"; // 副業として成立する働き方ではない (D-026)
+
+export const REJECT_GATE_LABELS: Record<RejectGate, string> = {
+  too_short: "本文が短すぎる",
+  no_title: "タイトルを特定できない",
+  not_physical_work: "身体を使う仕事ではない",
+  not_side_job: "副業向きの雇用形態ではない"
+};
+
+export type ExtractOutcome =
+  | { kind: "listing"; facts: ExtractedListing }
+  | { kind: "rejected"; gate: RejectGate; reason: string };
 
 export interface ExtractInput {
   html: string;
@@ -108,10 +151,12 @@ export interface ExtractInput {
   grade: SourceGrade;
 }
 
-export function extractListing(input: ExtractInput): ExtractedListing | null {
+export function extractListing(input: ExtractInput): ExtractOutcome {
   const { html, entityName, grade } = input;
   const text = normalizeContent(html);
-  if (text.length < 40) return null;
+  if (text.length < 40) {
+    return { kind: "rejected", gate: "too_short", reason: `本文が ${text.length} 文字しかない` };
+  }
 
   const jsonLd = extractFromJsonLd(html);
   const headings = extractHeadings(html);
@@ -127,7 +172,13 @@ export function extractListing(input: ExtractInput): ExtractedListing | null {
 
   // ---- title (必須) ----
   const title = jsonLd.title?.value ?? headings.h1 ?? headings.title;
-  if (!title) return null;
+  if (!title) {
+    return {
+      kind: "rejected",
+      gate: "no_title",
+      reason: "JSON-LD の title も <h1> も <title> も見つからない"
+    };
+  }
   note("title", jsonLd.title);
 
   // ---- description ----
@@ -142,7 +193,7 @@ export function extractListing(input: ExtractInput): ExtractedListing | null {
     reviewReasons.push(`身体作業かどうか判定できない: ${eligibility.reason}`);
   } else if (eligibility.physicalWork === false) {
     // 対象外と判定できたものは listing にしない
-    return null;
+    return { kind: "rejected", gate: "not_physical_work", reason: eligibility.reason };
   }
   if (eligibility.category === null) {
     reviewReasons.push(`カテゴリを特定できない: ${eligibility.reason}`);
@@ -171,7 +222,7 @@ export function extractListing(input: ExtractInput): ExtractedListing | null {
   });
   if (sideJob.suitable === false) {
     // 対象外と確定したものは listing にしない（PC 中心の仕事と同じ扱い）
-    return null;
+    return { kind: "rejected", gate: "not_side_job", reason: sideJob.reason };
   }
   if (sideJob.suitable === null) {
     reviewReasons.push(`副業として成立するか判定できない: ${sideJob.reason}`);
@@ -277,5 +328,5 @@ export function extractListing(input: ExtractInput): ExtractedListing | null {
   const { reviewReasons: _r, evidence: _e, factHash: _f, ...factsOnly } = facts;
   facts.factHash = factHash(factsOnly as Record<string, unknown>);
 
-  return facts;
+  return { kind: "listing", facts };
 }

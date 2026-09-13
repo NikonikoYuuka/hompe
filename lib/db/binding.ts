@@ -1,4 +1,4 @@
-import type { Db } from "../db";
+import type { Db, SqliteRow } from "../db";
 
 /**
  * Cloudflare Workers 内から D1 binding を使うドライバ。
@@ -42,12 +42,12 @@ async function d1(): Promise<D1Database> {
 
 export function bindingDb(): Db {
   return {
-    async all<T>(sql: string, params: unknown[] = []) {
-      const result = await bind(await d1(), sql, params).all<T>();
+    async all(sql: string, params: unknown[] = []) {
+      const result = await bind(await d1(), sql, params).all<SqliteRow>();
       return result.results ?? [];
     },
-    async first<T>(sql: string, params: unknown[] = []) {
-      return bind(await d1(), sql, params).first<T>();
+    async first(sql: string, params: unknown[] = []) {
+      return bind(await d1(), sql, params).first<SqliteRow>();
     },
     async run(sql: string, params: unknown[] = []) {
       const result = await bind(await d1(), sql, params).run();

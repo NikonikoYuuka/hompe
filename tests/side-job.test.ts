@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { judgeSideJobFit } from "../lib/side-job";
-import { extractListing } from "../lib/extract";
+import { expectListing, expectRejected } from "./_helpers";
 
 /**
  * 働き方の軸の判定 (D-026)。
@@ -115,43 +115,40 @@ test("ボランティア・地域活動は雇用形態の判定対象外", () =>
 // 抽出全体を通したときの挙動
 // ---------------------------------------------------------------------------
 
-function extract(inner: string) {
-  return extractListing({
-    html: `<html><body>${inner}</body></html>`,
-    entityName: "テスト",
-    grade: "A"
-  });
-}
+const input = (inner: string) => ({
+  html: `<html><body>${inner}</body></html>`,
+  entityName: "テスト",
+  grade: "A" as const
+});
 
 test("正社員の介護求人は Listing にしない（中身は「介護」で通ってしまうため）", () => {
-  const facts = extract(
-    `<h1>介護スタッフ募集（正社員）</h1><p>東京都世田谷区の特別養護老人ホームでの介護業務。
-     身体介護・入浴介助。月給24万円〜。週5日勤務、シフト制のため土日勤務あり。TEL 03-0000-0000</p>`
+  const rejected = expectRejected(
+    input(`<h1>介護スタッフ募集（正社員）</h1><p>東京都世田谷区の特別養護老人ホームでの介護業務。
+     身体介護・入浴介助。月給24万円〜。週5日勤務、シフト制のため土日勤務あり。TEL 03-0000-0000</p>`)
   );
-  assert.equal(facts, null);
+  assert.equal(rejected.gate, "not_side_job", "働き方のゲートで落ちること");
 });
 
 test("単発の草刈りは Listing になる", () => {
-  const facts = extract(
-    `<h1>週末の草刈り</h1><p>神奈川県平塚市で草刈り。9:00〜12:00。日給8,000円。単発OK。
-     資格不要。TEL 0463-00-0000。毎週募集しています。</p>`
+  const facts = expectListing(
+    input(`<h1>週末の草刈り</h1><p>神奈川県平塚市で草刈り。9:00〜12:00。日給8,000円。単発OK。
+     資格不要。TEL 0463-00-0000。毎週募集しています。</p>`)
   );
-  assert.ok(facts);
   assert.equal(facts.workType, "grass_cutting");
 });
 
 test("雇用形態の記載がない有給案件は Listing にしない", () => {
-  const facts = extract(
-    `<h1>倉庫での搬入作業</h1><p>東京都大田区。荷役作業。時給1,200円。資格不要。TEL 03-2222-2222</p>`
+  const rejected = expectRejected(
+    input(`<h1>倉庫での搬入作業</h1><p>東京都大田区。荷役作業。時給1,200円。資格不要。TEL 03-2222-2222</p>`)
   );
-  assert.equal(facts, null);
+  assert.equal(rejected.gate, "not_side_job");
+  assert.ok(rejected.reason.includes("推論しない"));
 });
 
 test("同時募集は Listing にするが要確認にする", () => {
-  const facts = extract(
-    `<h1>清掃スタッフ募集</h1><p>東京都。清掃業務。正社員・アルバイト同時募集。
-     時給1,200円〜。TEL 03-3333-3333</p>`
+  const facts = expectListing(
+    input(`<h1>清掃スタッフ募集</h1><p>東京都。清掃業務。正社員・アルバイト同時募集。
+     時給1,200円〜。TEL 03-3333-3333</p>`)
   );
-  assert.ok(facts);
   assert.ok(facts.reviewReasons.some((reason) => reason.includes("副業")));
 });

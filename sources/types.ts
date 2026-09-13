@@ -1,4 +1,4 @@
-import type { ExtractedListing } from "../lib/extract";
+import type { ExtractOutcome } from "../lib/extract";
 import type { SourceCheckOutcome } from "../lib/source-check";
 import type { SourceRow } from "../lib/types";
 
@@ -14,6 +14,6 @@ export interface SourceAdapter {
   key: string;
   /** Source を1回チェックして変更の有無を返す */
   check(source: SourceRow): Promise<SourceCheckOutcome>;
-  /** 変更があったページから Fact を抽出する。取れなければ null */
-  extract(html: string, source: SourceRow): ExtractedListing | null;
+  /** 変更があったページから Fact を抽出する。掲載対象外なら理由つきで返す */
+  extract(html: string, source: SourceRow): ExtractOutcome;
 }

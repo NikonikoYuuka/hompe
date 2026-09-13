@@ -103,15 +103,13 @@ async function main() {
     };
     const keys = Object.keys(values);
 
-    const existing = await db.first<{ id: string }>("select id from sources where url = ?", [
-      seed.url
-    ]);
+    const existing = await db.first("select id from sources where url = ?", [seed.url]);
 
     try {
       if (existing) {
         await db.run(
           `update sources set ${keys.map((key) => `${key} = ?`).join(", ")} where id = ?`,
-          [...keys.map((key) => values[key]), existing.id]
+          [...keys.map((key) => values[key]), String(existing.id)]
         );
         updated += 1;
         console.log(`△ ${seed.name} — 更新`);

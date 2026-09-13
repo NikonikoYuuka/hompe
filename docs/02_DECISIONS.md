@@ -357,3 +357,33 @@ daily と判定しない。判定は本文の文字列ではなく `pay_unit` �
 **原典との関係**: 原典（`docs/10_SPEC.md`）§6 は「仕事・アルバイト・ボランティア・
 地域活動等」としか書いておらず、正規雇用の扱いを明示していなかった。
 依頼者の確認により、この Decision で補う。
+
+---
+
+## D-027 DB ドライバにドメイン型を名乗らせない
+
+**Decision**: `Db.all` / `Db.first` はジェネリクスを取らず、常に `SqliteRow`
+（`Record<string, unknown>`）を返す。ドメイン型への変換は `lib/db/rows.ts` の
+マッパーを通すことを型で強制する。集計は `countRows(db, sql, params)` を使う。
+
+**Reason**: `db.all<ListingRow>("select * from listings")` が型エラーにならず、
+実行時は `physical_work` が 0/1（number）なのに型上は `boolean | null` になっていた。
+`0` は falsy・`1` は truthy なので気づきにくく、`lib/labels.ts` の
+`=== true` / `=== false` 判定が全て外れて D-011 の三値が静かに壊れる。
+
+**帰結**: この変更で、マッパーを迂回していた6箇所がコンパイルエラーとして検出された。
+`lib/db/rows.ts` に変換層のテストを追加した（それまで0件だった）。
+
+---
+
+## D-028 抽出の却下理由をゲート別に返す
+
+**Decision**: `extractListing` は `ExtractedListing | null` ではなく
+`{ kind: "listing" } | { kind: "rejected"; gate; reason }` を返す。
+`ops:extract` はゲート別に件数を集計して出力する。
+
+**Reason**: 「対象外 N件」だけでは、供給が減った原因が仕事内容なのか雇用形態なのか
+分からず、D-026 の閾値（雇用形態の記載が無ければ掲載しない）を見直す判断ができない。
+
+**帰結**: 型を分けたことで、「除外語だけの仕事を Listing にしない」テストが
+実際には `too_short` で落ちていて、主張と違う理由で通っていたことが判明した。

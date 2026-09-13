@@ -1,6 +1,6 @@
 import "./_bootstrap";
 import { getDb } from "../lib/db";
-import { mapListing, type SqliteRow } from "../lib/db/rows";
+import { mapListing } from "../lib/db/rows";
 import { judgeExpiry, todayIso } from "../lib/lifecycle";
 
 /**
@@ -13,7 +13,7 @@ async function main() {
   const db = await getDb();
   const today = todayIso();
 
-  const rows = await db.all<SqliteRow>(
+  const rows = await db.all(
     `select * from listings where status in ('active', 'scheduled', 'draft', 'review_required')`
   );
   const listings = rows.map(mapListing);

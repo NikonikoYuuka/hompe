@@ -1,5 +1,5 @@
 import { safeQuery } from "./db";
-import { mapListing, type SqliteRow } from "./db/rows";
+import { mapListing } from "./db/rows";
 import { upcomingWeekend } from "./lifecycle";
 import type { ListingCategory, ListingRow } from "./types";
 
@@ -66,7 +66,7 @@ export async function fetchPublicListings(
   return safeQuery(
     "公開 Listing の取得",
     async (db) => {
-      const rows = await db.all<SqliteRow>(
+      const rows = await db.all(
         `select ${COLUMNS} from listings
          where ${where.join(" and ")}
          order by (event_date is null), event_date asc, published_at desc
@@ -83,7 +83,7 @@ export async function fetchPublicListing(id: string): Promise<PublicListing | nu
   return safeQuery(
     "Listing 詳細の取得",
     async (db) => {
-      const row = await db.first<SqliteRow>(
+      const row = await db.first(
         `select ${COLUMNS} from listings where id = ? and status = 'active'`,
         [id]
       );
@@ -105,7 +105,7 @@ export async function fetchWeekendListings(limit = 6): Promise<PublicListing[]> 
   return safeQuery(
     "今週末の Listing の取得",
     async (db) => {
-      const rows = await db.all<SqliteRow>(
+      const rows = await db.all(
         `select ${COLUMNS} from listings
          where status = 'active'
            and availability_type = 'fixed_date'
@@ -125,12 +125,12 @@ export async function fetchAvailablePrefectures(): Promise<string[]> {
   return safeQuery(
     "都道府県一覧の取得",
     async (db) => {
-      const rows = await db.all<{ prefecture: string }>(
+      const rows = await db.all(
         `select distinct prefecture from listings
          where status = 'active' and prefecture is not null
          order by prefecture asc`
       );
-      return rows.map((row) => row.prefecture);
+      return rows.map((row) => String(row.prefecture));
     },
     []
   );

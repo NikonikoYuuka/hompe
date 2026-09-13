@@ -1,4 +1,4 @@
-import { getDb, type Db } from "./db";
+import { countRows, getDb, type Db } from "./db";
 
 /**
  * Weekly metrics (spec §37)。
@@ -29,10 +29,7 @@ export interface WeeklyMetrics {
   page_view: number;
 }
 
-async function count(db: Db, sql: string, params: unknown[] = []): Promise<number> {
-  const row = await db.first<{ count: number }>(sql, params);
-  return Number(row?.count ?? 0);
-}
+const count = (db: Db, sql: string, params: unknown[] = []) => countRows(db, sql, params);
 
 export async function collectWeeklyMetrics(days = 7): Promise<WeeklyMetrics> {
   const db = await getDb();
@@ -61,11 +58,13 @@ export async function collectWeeklyMetrics(days = 7): Promise<WeeklyMetrics> {
   );
   const published = await count(db, "select count(*) as count from listings where status = 'active'");
 
-  const events = await db.all<{ event_type: string; count: number }>(
+  const events = await db.all(
     "select event_type, count(*) as count from analytics_events where created_at >= ? group by event_type",
     [since]
   );
-  const byType = Object.fromEntries(events.map((row) => [row.event_type, Number(row.count)]));
+  const byType: Record<string, number> = Object.fromEntries(
+    events.map((row) => [String(row.event_type), Number(row.count)])
+  );
 
   return {
     periodStart: since.slice(0, 10),

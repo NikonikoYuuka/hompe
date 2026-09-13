@@ -1,4 +1,4 @@
-import type { Db } from "../db";
+import type { Db, SqliteRow } from "../db";
 
 /**
  * 運用スクリプト（Node / GitHub Actions）から D1 を使うドライバ。
@@ -65,12 +65,12 @@ async function request<T>(sql: string, params: unknown[]): Promise<{
 
 export function httpDb(): Db {
   return {
-    async all<T>(sql: string, params: unknown[] = []) {
-      const { rows } = await request<T>(sql, params);
+    async all(sql: string, params: unknown[] = []) {
+      const { rows } = await request<SqliteRow>(sql, params);
       return rows;
     },
-    async first<T>(sql: string, params: unknown[] = []) {
-      const { rows } = await request<T>(sql, params);
+    async first(sql: string, params: unknown[] = []) {
+      const { rows } = await request<SqliteRow>(sql, params);
       return rows[0] ?? null;
     },
     async run(sql: string, params: unknown[] = []) {

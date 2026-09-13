@@ -6,9 +6,10 @@ import {
   extractWorkHours,
   extractWeekendMention,
   extractLocation,
-  extractDeadline
+  extractDeadline,
+  extractEventDate
 } from "../lib/extract/patterns";
-import { extractListing } from "../lib/extract";
+import { expectListing, expectRejected } from "./_helpers";
 import { contentHash, normalizeContent } from "../lib/normalize";
 
 /**
@@ -109,6 +110,34 @@ test("都道府県と市区町村を取れる", () => {
   assert.equal(location?.value.city, "平塚市");
 });
 
+/**
+ * ラベルの近くにある「最終更新日」を開催日として拾うと、
+ * 定期募集のページが fixed_date に昇格し、確定日として表示される (D-005 の入力側)。
+ */
+test("更新日・掲載日・バージョン番号を日程として拾わない", () => {
+  assert.equal(
+    extractEventDate("勤務日：土日祝を中心にシフト制　このページの最終更新日 2026/03/01"),
+    null
+  );
+  assert.equal(extractEventDate("日時 未定（決まり次第ご連絡） ver 2026.10.5 更新"), null);
+  assert.equal(extractDeadline("締切は各ページに記載　最終更新 2026/03/01"), null);
+});
+
+test("同じ本文に更新日と開催日があれば、開催日を取る", () => {
+  assert.equal(extractEventDate("掲載日 2026/03/01　開催日 2026/09/19")?.value, "2026-09-19");
+});
+
+test("日付と定期募集の記載が同居したら fixed_date にしない (D-005)", () => {
+  const facts = expectListing({
+    html: `<html><body><h1>草刈り</h1><p>神奈川県平塚市。開催日 2026年9月19日 9:00〜12:00。
+      日給8,000円。毎週募集しています。資格不要。お問い合わせ 0463-00-0000</p></body></html>`,
+    entityName: "テスト農園",
+    grade: "A"
+  });
+  assert.equal(facts.availabilityType, "unknown", "確定日として出さない");
+  assert.ok(facts.reviewReasons.some((reason) => reason.includes("同居")));
+});
+
 test("年の記載がない締切は推定値として low confidence になる", () => {
   const deadline = extractDeadline("応募締切 9月13日");
   assert.ok(deadline);
@@ -134,8 +163,7 @@ test("JSON-LD があれば構造化データから Fact を取り、review 理�
     <p>神奈川県平塚市。9:00〜12:00 の草刈り作業です。初心者可。日給8,000円。交通費支給。お問い合わせ 0463-00-0000</p>
     </body></html>`;
 
-  const facts = extractListing({ html, entityName: "株式会社テスト農園", grade: "A" });
-  assert.ok(facts);
+  const facts = expectListing({ html, entityName: "株式会社テスト農園", grade: "A" });
   assert.equal(facts.title, "週末の草刈り作業");
   assert.equal(facts.workType, "grass_cutting");
   assert.equal(facts.category, "nature_outdoor");
@@ -159,28 +187,29 @@ test("資格不要と明記されていれば、そう表示できる", () => {
     <p>神奈川県平塚市。9:00〜12:00 の草刈り作業です。資格不要。日給8,000円。
     交通費支給。お問い合わせ 0463-00-0000。毎週募集しています。</p>
     </body></html>`;
-  const facts = extractListing({ html, entityName: "株式会社テスト農園", grade: "A" });
-  assert.ok(facts);
+  const facts = expectListing({ html, entityName: "株式会社テスト農園", grade: "A" });
   assert.equal(facts.qualificationRequired, false);
 });
 
 test("grade C は抽出が通っても自動公開しない理由が残る", () => {
   const html = `<html><body><h1>週末の草刈り</h1><p>神奈川県平塚市で草刈り。9:00〜12:00。初心者可。日給8,000円。お問い合わせ 0463-00-0000。毎週募集しています。</p></body></html>`;
-  const facts = extractListing({ html, entityName: "テスト農園", grade: "C" });
-  assert.ok(facts);
+  const facts = expectListing({ html, entityName: "テスト農園", grade: "C" });
   assert.ok(facts.reviewReasons.some((reason) => reason.includes("grade C")));
 });
 
 test("身体作業の語がなく除外語だけの仕事は Listing にしない", () => {
-  const html = `<html><body><h1>事務スタッフ</h1><p>データ入力とコールセンター業務。時給1,100円。</p></body></html>`;
-  assert.equal(extractListing({ html, entityName: "テスト", grade: "A" }), null);
+  // 本文が短いと too_short で落ちて、除外語の判定まで到達しない。実在のページに近い長さにする
+  const html = `<html><body><h1>事務スタッフ募集</h1><p>東京都千代田区のオフィスでの勤務です。
+    データ入力とコールセンター業務をお願いします。アルバイト。時給1,100円。交通費支給。
+    未経験の方も歓迎します。お問い合わせ 03-0000-0000</p></body></html>`;
+  const rejected = expectRejected({ html, entityName: "テスト", grade: "A" });
+  assert.equal(rejected.gate, "not_physical_work");
 });
 
 test("身体作業の語とデスクワークの語が同居したら人間に回す (D-007)", () => {
   // 「キャンプ場」という場所の語だけで対象と判断しない。主従はコードでは決めない。
   const html = `<html><body><h1>キャンプ場スタッフ</h1><p>キャンプ場の受付のみ。データ入力とパソコン入力が中心です。アルバイト。時給1,100円。</p></body></html>`;
-  const facts = extractListing({ html, entityName: "テスト", grade: "A" });
-  assert.ok(facts);
+  const facts = expectListing({ html, entityName: "テスト", grade: "A" });
   assert.equal(facts.physicalWork, null, "身体作業かどうかを断定しない");
   assert.ok(facts.reviewReasons.some((reason) => reason.includes("判定できない")));
 });

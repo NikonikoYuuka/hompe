@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CACHE_DIR, arg, flag } from "./_bootstrap";
 import { getDb, nowIso, type Db } from "../lib/db";
-import { mapSource, type SqliteRow } from "../lib/db/rows";
+import { mapSource } from "../lib/db/rows";
 import { getAdapter } from "../sources/registry";
 import { judgeFromHttpStatus } from "../lib/lifecycle";
 import type { SourceRow } from "../lib/types";
@@ -36,7 +36,7 @@ async function main() {
   }
   params.push(limit);
 
-  const rows = await db.all<SqliteRow>(
+  const rows = await db.all(
     `select * from sources where ${where.join(" and ")}
      order by (checked_at is not null), checked_at asc limit ?`,
     params

@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import "./_bootstrap";
 import { getDb } from "../lib/db";
-import { mapListing, type SqliteRow } from "../lib/db/rows";
+import { mapListing } from "../lib/db/rows";
 import { upcomingWeekend } from "../lib/lifecycle";
 import { CATEGORY_LABELS, locationText, rewardText, scheduleText } from "../lib/labels";
 import type { ListingRow } from "../lib/types";
@@ -47,7 +47,7 @@ async function main() {
   const { saturday, sunday } = upcomingWeekend();
 
   // 日付が確定しているもの（今週末）
-  const fixedRows = await db.all<SqliteRow>(
+  const fixedRows = await db.all(
     `select * from listings
      where status = 'active' and availability_type = 'fixed_date'
        and event_date >= ? and event_date <= ?
@@ -56,7 +56,7 @@ async function main() {
   );
 
   // 土日に働けると Source に記載があるもの（「今週末働ける」とは書かない D-005）
-  const recurringRows = await db.all<SqliteRow>(
+  const recurringRows = await db.all(
     `select * from listings
      where status = 'active'
        and availability_type in ('recurring', 'registration')

@@ -128,7 +128,7 @@ npm run dev        # 開発サーバ
 npm run preview    # Worker として動かす（本番に近い）
 npm run deploy     # Cloudflare へデプロイ
 npm run build      # Next.js のビルド
-npm run lint       # ESLint
+npm run lint       # ESLint（scripts/ sources/ tests/ も対象）
 npm run typecheck  # tsc --noEmit
 npm test           # 抽出・lifecycle・広告ガードのテスト
 

@@ -1,0 +1,46 @@
+# PR と push で typecheck / test / lint を回す。
+#
+# これが無いと、本番 D1 を書き換える scripts/ を守るのが
+# 人間のレビューだけになる（docs/08_ARCHITECTURE.md）。
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "claude/**"
+
+# 同じブランチへ連続で push したら古い実行を打ち切る
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: typecheck
+        run: npm run typecheck
+
+      - name: test
+        run: npm test
+
+      # scripts/ sources/ tests/ も対象にする（next lint は app/lib しか見ない）
+      - name: lint
+        run: npm run lint
+
+      # D1 のスキーマが実際に適用できることを確認する
+      - name: migration
+        run: npx wrangler d1 migrations apply nikutai-fukugyou --local
+
+      - name: build
+        run: npm run build

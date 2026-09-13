@@ -5,6 +5,7 @@ import { getDb, newId, nowIso } from "../lib/db";
 import { fromBool, fromList, mapListing, mapSource, type SqliteRow } from "../lib/db/rows";
 import { getAdapter } from "../sources/registry";
 import { fetchSourcePage } from "../lib/http";
+import { REJECT_GATE_LABELS, type RejectGate } from "../lib/extract";
 
 /**
  * 木曜の処理 (docs/05_OPERATIONS.md)。
@@ -50,9 +51,9 @@ async function main() {
    */
   let rows: SqliteRow[];
   if (explicitId) {
-    rows = await db.all<SqliteRow>("select * from sources where id = ?", [explicitId]);
+    rows = await db.all("select * from sources where id = ?", [explicitId]);
   } else if (since) {
-    rows = await db.all<SqliteRow>(
+    rows = await db.all(
       "select * from sources where changed_at is not null and changed_at >= ? and status = 'active' and grade <> 'D'",
       [since]
     );
@@ -64,7 +65,7 @@ async function main() {
       return;
     }
     const placeholders = ids.map(() => "?").join(", ");
-    rows = await db.all<SqliteRow>(`select * from sources where id in (${placeholders})`, ids);
+    rows = await db.all(`select * from sources where id in (${placeholders})`, ids);
   }
 
   const sources = rows.map(mapSource);
@@ -76,8 +77,14 @@ async function main() {
   let created = 0;
   let updated = 0;
   let review = 0;
-  let skipped = 0;
   let changedWhilePublished = 0;
+  /** どのゲートで落ちたかを数える。供給の減り方を実測するため (D-026) */
+  const rejected: Record<RejectGate, number> = {
+    too_short: 0,
+    no_title: 0,
+    not_physical_work: 0,
+    not_side_job: 0
+  };
 
   for (const source of sources) {
     let html = refetch ? null : cachedHtml(source.id);
@@ -91,18 +98,20 @@ async function main() {
     }
 
     const adapter = getAdapter(source.adapter);
-    const facts = adapter.extract(html, source);
+    const outcome = adapter.extract(html, source);
 
-    if (!facts) {
-      skipped += 1;
+    if (outcome.kind === "rejected") {
+      rejected[outcome.gate] += 1;
       console.log(
-        `  ${source.name} — 掲載対象外（身体を使う仕事でない / 副業向きの雇用形態でない / 本文が短い）`
+        `  ${source.name} — 掲載対象外（${REJECT_GATE_LABELS[outcome.gate]}）: ${outcome.reason}`
       );
       dropCache(source.id);
       continue;
     }
 
-    const existingRow = await db.first<SqliteRow>("select * from listings where source_url = ?", [
+    const facts = outcome.facts;
+
+    const existingRow = await db.first("select * from listings where source_url = ?", [
       source.url
     ]);
     const existing = existingRow ? mapListing(existingRow) : null;
@@ -215,10 +224,27 @@ async function main() {
     dropCache(source.id);
   }
 
+  const rejectedTotal = Object.values(rejected).reduce((sum, n) => sum + n, 0);
+
   console.log(
-    `\n新規 ${created}件 / 更新 ${updated}件 / 要確認 ${review}件 / 対象外 ${skipped}件` +
-      ` / 公開中に変更 ${changedWhilePublished}件`
+    `\n新規 ${created}件 / 更新 ${updated}件 / 要確認 ${review}件` +
+      ` / 公開中に変更 ${changedWhilePublished}件 / 対象外 ${rejectedTotal}件`
   );
+
+  if (rejectedTotal > 0) {
+    console.log("\n対象外の内訳:");
+    for (const [gate, count] of Object.entries(rejected)) {
+      if (count > 0) {
+        console.log(`  ${REJECT_GATE_LABELS[gate as RejectGate].padEnd(22)} ${count}件`);
+      }
+    }
+    if (rejected.not_side_job > 0) {
+      console.log(
+        "\n  ※ 雇用形態で落ちた件数が多い場合は D-026 の扱い（記載なしを掲載しない）を見直す"
+      );
+    }
+  }
+
   if (review + changedWhilePublished > 0) console.log("次: /admin/review で確認");
 }
 
