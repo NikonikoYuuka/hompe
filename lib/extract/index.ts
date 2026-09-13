@@ -1,6 +1,7 @@
 import { normalizeContent, extractHeadings, factHash } from "../normalize";
 import { judgeEligibility } from "../eligibility";
 import { judgeSafety } from "../safety";
+import { judgeSideJobFit } from "../side-job";
 import { extractFromJsonLd } from "./jsonld";
 import {
   extractDeadline,
@@ -161,6 +162,20 @@ export function extractListing(input: ExtractInput): ExtractedListing | null {
   const expenses = extractExpenses(text);
   note("expenses", expenses);
 
+  // ---- 副業として成立する働き方か (D-026) ----
+  // 仕事の中身（physicalWork）とは直交する軸。正社員の介護は「介護」だが副業ではない
+  const sideJob = judgeSideJobFit(text, {
+    category: eligibility.category,
+    rewardType
+  });
+  if (sideJob.suitable === false) {
+    // 対象外と確定したものは listing にしない（PC 中心の仕事と同じ扱い）
+    return null;
+  }
+  if (sideJob.suitable === null) {
+    reviewReasons.push(`副業として成立するか判定できない: ${sideJob.reason}`);
+  }
+
   // ---- location ----
   const location = take(
     jsonLd.prefecture
@@ -227,7 +242,7 @@ export function extractListing(input: ExtractInput): ExtractedListing | null {
     workType: eligibility.workType,
     category: eligibility.category,
     physicalWork: eligibility.physicalWork,
-    eligibilityReason: eligibility.reason,
+    eligibilityReason: `${eligibility.reason} / 働き方: ${sideJob.reason}`,
 
     rewardType,
     payText: pay?.value.text ?? null,

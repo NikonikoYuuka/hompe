@@ -84,6 +84,7 @@ lib/extract/jsonld.ts    JobPosting / Event の構造化データ
 lib/extract/patterns.ts  pay / dates / hours / deadline / address / qualification
 lib/extract/index.ts     Extracted<T> = { value, confidence, evidence } | null
 lib/eligibility.ts       work content ベースの physical_work 判定 + category
+lib/side-job.ts          働き方の軸。正規雇用を除外する (D-026)
 lib/safety.ts            safety_flags
 lib/lifecycle.ts         expired / closed 判定
 ```

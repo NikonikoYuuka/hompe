@@ -95,7 +95,9 @@ async function main() {
 
     if (!facts) {
       skipped += 1;
-      console.log(`  ${source.name} — 掲載対象の募集を抽出できませんでした`);
+      console.log(
+        `  ${source.name} — 掲載対象外（身体を使う仕事でない / 副業向きの雇用形態でない / 本文が短い）`
+      );
       dropCache(source.id);
       continue;
     }
