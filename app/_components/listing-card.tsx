@@ -21,7 +21,10 @@ export function ListingCard({ listing }: { listing: PublicListing }) {
               {CATEGORY_LABELS[listing.category]}
             </span>
           )}
-          <span>{listing.reward_type === "volunteer" ? "無償" : "有給"}</span>
+          {/* unknown を「有給」に潰さない。記載がなければバッジを出さない (D-006) */}
+          {listing.reward_type !== "unknown" && (
+            <span>{listing.reward_type === "volunteer" ? "無償" : "有給"}</span>
+          )}
         </div>
 
         <h2 className="mt-3 text-base font-bold leading-snug text-ink-50">{listing.title}</h2>

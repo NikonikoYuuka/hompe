@@ -4,7 +4,7 @@ import "./_bootstrap";
 import { getDb } from "../lib/db";
 import { mapListing, type SqliteRow } from "../lib/db/rows";
 import { upcomingWeekend } from "../lib/lifecycle";
-import { CATEGORY_LABELS, formatDate, locationText, rewardText } from "../lib/labels";
+import { CATEGORY_LABELS, locationText, rewardText, scheduleText } from "../lib/labels";
 import type { ListingRow } from "../lib/types";
 
 /**
@@ -31,10 +31,9 @@ const OPENERS = [
 
 function postFor(listing: ListingRow, index: number): string {
   const opener = OPENERS[index % OPENERS.length];
-  const date = listing.event_date ? formatDate(listing.event_date) : null;
+  // 日付は必ず scheduleText を経由する。recurring / registration に確定日を書かない (D-005)
   const facts = [
-    date,
-    listing.work_hours_text,
+    scheduleText(listing),
     locationText(listing),
     listing.title,
     rewardText(listing)

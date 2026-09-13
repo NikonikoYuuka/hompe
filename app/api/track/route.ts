@@ -10,11 +10,48 @@ import type { AnalyticsEventType } from "../../../lib/types";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * 自サイトからの送信だけを受け付ける。
+ *
+ * 認証なしで書き込めるエンドポイントなので、素の curl で
+ *   - official_source_click（Demand Validation の主要指標）を捏造される
+ *   - D1 無料枠の日次書き込み上限を食い潰される
+ * のを防ぐ。navigator.sendBeacon と fetch は Origin を必ず送る。
+ *
+ * これは量の制御としては最低限で、本命は Cloudflare 側の Rate Limiting
+ * （docs/08_ARCHITECTURE.md §4.5）。コードだけで完結させない。
+ */
+function isAllowedOrigin(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  if (site) {
+    try {
+      return new URL(origin).origin === new URL(site).origin;
+    } catch {
+      return false;
+    }
+  }
+
+  // NEXT_PUBLIC_SITE_URL 未設定（開発時）は同一オリジンだけ許可する
+  try {
+    return new URL(origin).origin === new URL(request.url).origin;
+  } catch {
+    return false;
+  }
+}
+
 const ALLOWED: AnalyticsEventType[] = ["page_view", "listing_view", "official_source_click"];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: Request) {
+  if (!isAllowedOrigin(request)) {
+    // 攻撃者に成否を伝えない。正規の利用者と同じ 204 を返す
+    return new Response(null, { status: 204 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();

@@ -10,8 +10,23 @@ import type { ListingRow, ListingStatus } from "./types";
  * - 物理削除しない。expired / closed は archive として保持する (D-004)
  */
 
+/**
+ * このプロダクトの日付はすべて **JST（Asia/Tokyo）の暦日** として扱う。
+ *
+ * 対象は日本の募集ページであり、ユーザーも日本にいる。UTC で判定すると
+ * 日本時間の午前9時までが「前日」になり、土曜のイベントが日曜いっぱい残る。
+ * DB の event_date / application_deadline も JST の暦日として保存する。
+ */
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function jstDayStart(now: Date): Date {
+  const jst = new Date(now.getTime() + JST_OFFSET_MS);
+  return new Date(Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()));
+}
+
+/** JST の「今日」を YYYY-MM-DD で返す */
 export function todayIso(now: Date = new Date()): string {
-  return now.toISOString().slice(0, 10);
+  return jstDayStart(now).toISOString().slice(0, 10);
 }
 
 export interface LifecycleDecision {
@@ -73,14 +88,22 @@ export function isPublic(status: ListingStatus): boolean {
   return status === "active";
 }
 
-/** 今週末（土・日）の ISO 日付を返す */
+/**
+ * 今週末（土・日）の ISO 日付を JST 基準で返す。
+ *
+ * **日曜は「今週末の2日目」なので、当日を含める。**
+ * ここを「次の土曜」にすると、日曜に見にきた人へ翌週の案件しか出なくなる。
+ */
 export function upcomingWeekend(now: Date = new Date()): { saturday: string; sunday: string } {
-  const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const daysUntilSaturday = (6 - base.getUTCDay() + 7) % 7;
+  const base = jstDayStart(now);
+  const dayOfWeek = base.getUTCDay(); // 0=日 ... 6=土
+  const daysUntilSaturday = dayOfWeek === 0 ? -1 : 6 - dayOfWeek;
+
   const saturday = new Date(base);
   saturday.setUTCDate(base.getUTCDate() + daysUntilSaturday);
   const sunday = new Date(saturday);
   sunday.setUTCDate(saturday.getUTCDate() + 1);
+
   return {
     saturday: saturday.toISOString().slice(0, 10),
     sunday: sunday.toISOString().slice(0, 10)

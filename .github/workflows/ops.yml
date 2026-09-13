@@ -15,6 +15,8 @@ on:
     - cron: "30 19 * * *"    # 毎日 04:30 JST — 期限切れの掃除
     - cron: "0 21 * * 3"     # 木 06:00 JST — 抽出
     - cron: "0 21 * * 4"     # 金 06:00 JST — 週末の紹介候補
+    - cron: "0 18 * * *"     # 毎日 03:00 JST — 公開サイトの死活確認 (canary)
+    - cron: "0 17 * * 0"     # 月 02:00 JST — D1 のバックアップ
   workflow_dispatch:
     inputs:
       command:
@@ -24,9 +26,68 @@ on:
         type: choice
         options: ["ops:check", "ops:extract", "ops:lifecycle", "ops:weekend", "ops:metrics", "ops:seed"]
 
+# 同じ Source を2つのジョブが同時に取りに行かないようにする
+concurrency:
+  group: ops
+  cancel-in-progress: false
+
 jobs:
-  run:
+  # 公開サイトが生きているかを外から確認する。
+  # D1 障害・Worker エラー・全件 expired・空 DB を1本で拾える。
+  # 失敗すると GitHub から失敗メールが飛ぶ（唯一の通知経路）。
+  canary:
+    if: github.event.schedule == '0 18 * * *'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 公開ページに案件が1件以上出ているか
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: |
+          if [ -z "$SITE_URL" ]; then
+            echo "SITE_URL secret が未設定です。" >&2
+            exit 1
+          fi
+          body=$(curl -sfS --max-time 20 "$SITE_URL/listings") || {
+            echo "公開ページを取得できませんでした。" >&2
+            exit 1
+          }
+          if ! printf '%s' "$body" | grep -q '/listings/'; then
+            echo "案件リンクが1件も見つかりません。DB 障害・全件 expired・空 DB を疑ってください。" >&2
+            exit 1
+          fi
+          echo "OK: 案件が表示されています。"
+
+  # D1 のバックアップ。人手で書いた editorial_note は Source から再生成できない。
+  backup:
+    if: github.event.schedule == '0 17 * * 0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: D1 をエクスポート
+        run: |
+          mkdir -p .backup
+          npx wrangler d1 export nikutai-fukugyou --remote \
+            --output ".backup/d1-$(date -u +%Y%m%d).sql"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d1-backup
+          path: .backup/*.sql
+          retention-days: 90
+
+  run:
+    if: github.event.schedule != '0 18 * * *' && github.event.schedule != '0 17 * * 0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
@@ -42,7 +103,9 @@ jobs:
 
       - name: 手動実行
         if: github.event_name == 'workflow_dispatch'
-        run: npm run ${{ inputs.command }}
+        env:
+          COMMAND: ${{ inputs.command }}
+        run: npm run "$COMMAND"
 
       - name: Source 巡回（月・火・水）
         if: github.event.schedule == '0 20 * * 0,1,2'

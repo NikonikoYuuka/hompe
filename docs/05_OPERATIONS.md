@@ -148,6 +148,27 @@ npm run ops:metrics
 
 ---
 
+## 失敗にどう気づくか
+
+通知経路は **GitHub Actions の失敗メール1本**しかない。そのため、以下を意図的に「赤く」している。
+
+| 仕掛け | 何を拾うか |
+| --- | --- |
+| `ops:check` の失敗率しきい値（30%超で exit 1） | Source 側の一斉拒否、ネットワーク障害 |
+| canary（毎日 03:00 JST、`curl` で公開ページに案件リンクがあるか） | D1 障害、Worker エラー、全件 expired、空 DB |
+| `ops:extract` の「公開中に変更 N件」 | 公開中の案件で Source が変わった（公開は継続する） |
+
+「緑で終わったのに全 Source が 403」という状態を作らないこと。
+巡回ジョブは1件の失敗で止まらず、最後にまとめて赤くする。
+
+## バックアップ
+
+毎週月曜 02:00 JST に `wrangler d1 export --remote` を実行し、
+GitHub Actions の artifact として90日保持する（`.github/workflows/ops.yml` の `backup` ジョブ）。
+
+理由: 人手で書いた `editorial_note` / `purpose_tags` は Source から再生成できない。
+間引き SQL の打ち間違いで消えると復旧手段がない。
+
 ## データの間引き
 
 行数が伸びるのは `analytics_events` と `source_checks` だけ。

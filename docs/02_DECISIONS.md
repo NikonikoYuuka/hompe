@@ -221,7 +221,8 @@ Fact Layer と Brand Layer を混ぜないのと同じ理由（D-006）。
 **Decision**: Cloudflare Workers（`@opennextjs/cloudflare`）と Cloudflare D1 を使う。
 Supabase は使わない。
 
-**Reason**: 依頼者の判断。無料枠に一般的な商用利用禁止条項がないため AdSense を
+**Reason**: 依頼者の判断。原典の要件は一貫して「無料枠に収める」ことであり（§21 / §29 / §49）、
+Cloudflare の無料枠はこれを満たす。加えて一般的な商用利用禁止条項がないため AdSense を
 掲載できる（Vercel Hobby は Google AdSense を commercial usage として名指しで
 禁止しており使えない）。追加の有料サービスも発生しない。
 
@@ -250,3 +251,64 @@ Worker の Cron Triggers は使わない。
 
 DB ドライバは `lib/db.ts` のインターフェースで抽象化し、
 Worker 側（binding）とスクリプト側（REST）で同じクエリコードを使う。
+
+---
+
+## D-022 抽出器は「経験」と「資格」を混同しない
+
+**Decision**: 「未経験可 / 初心者歓迎 / 経験不問」から `qualification_required = false` を導かない。
+資格について明示された否定（資格不要 / 資格不問 / 無資格可）だけを根拠にする。
+一覧に無い資格が要求されている可能性（`要・◯◯免許` 等）を拾ったら、
+資格名を確定できないので confidence を low にして review へ回す。
+両方が同居していたら `null` を返す。
+
+**Reason**: 「未経験可」は *経験* の記載であって *資格* の記載ではない。
+混同すると「未経験可・要けん引免許」の案件が「資格不要（Source 記載）」として公開され、
+無資格の読者が現地で門前払いになる。D-011 の直接違反。
+
+**帰結**: rule 抽出だけで `qualification_required` が確定する案件は減り、
+review 件数は増える。それは正しいコストであり、AI 導入判断の実測値にもなる。
+
+---
+
+## D-023 否定文から事実を作らない
+
+**Decision**: `weekend_available` は否定語ガードを先に評価する。
+「土日は不可 / 活動しません / お休み」にマッチしたら `null` を返す。
+
+**Reason**: 「（Source 記載）」という引用の体裁で、Source が言っていないどころか
+正反対のことを表示していた。編集メディアとして最も避けるべき種類の誤り。
+
+**帰結**: `weekend_available` は「土日のいずれかに働けると記載がある」ことしか意味しない
+（「土曜のみ実施」も true になる）。表示は「土日勤務可能」と断定せず
+「週末の勤務について記載あり」とする。
+
+---
+
+## D-024 日付はすべて JST の暦日として扱う
+
+**Decision**: `todayIso()` / `upcomingWeekend()` / `nextOccurrence()` を JST 基準に統一する。
+`upcomingWeekend()` は日曜を「今週末の2日目」として当日を含める。
+
+**Reason**: 対象は日本の募集ページでユーザーも日本にいる。UTC で判定すると、
+日本時間の午前9時までが「前日」になり、
+（1）土曜のイベントが日曜いっぱい公開され続ける、
+（2）日曜の昼に「今週末」が翌週へ飛ぶ、という実害が毎週発生する。
+
+**Not allowed**: 日付の比較・生成を UTC で行うこと。
+表示の `formatDate` も `timeZone: "UTC"` のままでよい（値が既に JST の暦日だから）。
+
+---
+
+## D-025 公開中の Listing を自動で下げない・書き換えない
+
+**Decision**: `ops:extract` は `status = 'active'` の Listing に対して、
+status も Fact も上書きしない。`review_reason` に「Source が変わった」と記録するだけにする。
+`last_verified_at` も更新しない。`/admin/review` はこれらも一覧に含める。
+
+**Reason**: 以前は status を無条件に `draft` へ上書きしていたため、
+「編集せず公開ボタンだけ押した」案件が Source の些細な変更で公開停止されていた。
+rule 抽出が綺麗に通った案件ほどこの経路に乗るので、良い案件から消える。
+
+確認していない事実を「最終確認：今日」と表示しないため、`last_verified_at` も据え置く。
+下げるか直すかは人間が決める。

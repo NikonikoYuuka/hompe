@@ -19,6 +19,23 @@ export async function fetchAdminListings(
   return rows.map(mapListing);
 }
 
+/**
+ * 人間の確認が必要な Listing。
+ *
+ * status = 'review_required' に加えて、**公開中に Source が変わったもの**も含める。
+ * 後者は公開を止めていないので、ここに出さないと誰も気づけない（scripts/extract.ts）。
+ */
+export async function fetchListingsNeedingReview(): Promise<ListingRow[]> {
+  const db = await getDb();
+  const rows = await db.all<SqliteRow>(
+    `select * from listings
+     where status = 'review_required'
+        or (status = 'active' and review_reason is not null)
+     order by (status = 'review_required') desc, updated_at desc`
+  );
+  return rows.map(mapListing);
+}
+
 export async function fetchAdminListing(id: string): Promise<ListingRow | null> {
   const db = await getDb();
   const row = await db.first<SqliteRow>("select * from listings where id = ?", [id]);

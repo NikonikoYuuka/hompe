@@ -150,8 +150,10 @@ export function scheduleText(
     return `${range}${hours}`;
   }
 
+  // weekend_available は「土日のいずれかに働けると Source に記載がある」ことしか意味しない。
+  // 「土曜のみ実施」も true になるので、「土日」と断定しない
   const weekend = listing.weekend_available
-    ? "土日勤務可能（Source 記載）。今週末の募集状況は公式サイトで確認"
+    ? "週末の勤務について記載あり。今週末の募集状況は公式サイトで確認"
     : "募集状況は公式サイトで確認";
 
   if (listing.availability_type === "recurring") return `定期募集。${weekend}${hours}`;

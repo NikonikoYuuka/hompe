@@ -77,6 +77,7 @@ async function main() {
   let updated = 0;
   let review = 0;
   let skipped = 0;
+  let changedWhilePublished = 0;
 
   for (const source of sources) {
     let html = refetch ? null : cachedHtml(source.id);
@@ -127,6 +128,29 @@ async function main() {
         existing.id
       ]);
       console.log(`△ ${source.name} — 人手編集済みのため要確認にしました`);
+      dropCache(source.id);
+      continue;
+    }
+
+    /**
+     * 公開中の Listing は、rule 抽出の結果で **下げも書き換えもしない**。
+     *
+     * 以前は status を無条件に draft / review_required で上書きしていたため、
+     * 「編集せず公開ボタンだけ押した」案件（= extraction_method が 'rule' のまま）が
+     * Source の些細な変更で公開停止されていた。
+     *
+     * ここでやるのは「Source が変わった」と記録することだけ。
+     * 下げるか直すかは人間が /admin/review で決める。
+     * last_verified_at も更新しない（確認していない事実を「確認済み」と表示しない）。
+     */
+    if (existing && existing.status === "active") {
+      await db.run("update listings set review_reason = ? where id = ?", [
+        "Source の内容が変わりました。公開中のため自動更新していません。内容を確認してください。\n" +
+          facts.reviewReasons.join("\n"),
+        existing.id
+      ]);
+      changedWhilePublished += 1;
+      console.log(`! ${source.name} — 公開中に Source が変わりました（要確認・公開は継続）`);
       dropCache(source.id);
       continue;
     }
@@ -190,9 +214,10 @@ async function main() {
   }
 
   console.log(
-    `\n新規 ${created}件 / 更新 ${updated}件 / 要確認 ${review}件 / 対象外 ${skipped}件`
+    `\n新規 ${created}件 / 更新 ${updated}件 / 要確認 ${review}件 / 対象外 ${skipped}件` +
+      ` / 公開中に変更 ${changedWhilePublished}件`
   );
-  if (review > 0) console.log("次: /admin/review で確認");
+  if (review + changedWhilePublished > 0) console.log("次: /admin/review で確認");
 }
 
 main().catch((error) => {

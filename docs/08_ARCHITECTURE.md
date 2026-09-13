@@ -158,11 +158,16 @@ listings（確定 Fact）
 | --- | --- | --- |
 | Frontend / Web | Next.js 15 App Router + `@opennextjs/cloudflare` | Cloudflare Workers 上で動く |
 | Hosting | **Cloudflare Workers（無料枠）** | Vercel Hobby は AdSense 掲載が規約違反になるため不可（D-020） |
-| Database | **Cloudflare D1（無料枠）** | SQLite。`db/migrations/`。原典 §49 は Supabase Free を第一候補としていたが、AdSense 掲載可否を含めて再評価し Cloudflare に決定（D-020） |
+| Database | **Cloudflare D1（無料枠）** | SQLite。`db/migrations/` |
 | Source checking | Node スクリプト（`scripts/`） | Worker の外。AI を使わない |
 | Scheduled job | GitHub Actions（`.github/workflows/ops.yml`） | D1 へは REST API で接続 |
 | Analytics | 自前（`analytics_events`） | 外部サービスを増やさない。個人情報を持たない |
 | AI | production runtime では不使用 | D-001 |
+
+原典の要件は一貫して「無料枠に収める」ことであり（§21 コスト原則 / §29 初期規模 /
+§49 Hosting「新たな有料 infrastructure を勝手に導入しない」）、Cloudflare の
+Workers + D1 はこれを満たす。§49 が挙げていた個別のサービス名は候補の例示であって、
+無料枠という制約そのものが要件である。
 
 Next.js 14 → 15 へ上げたのは `@opennextjs/cloudflare` の peer 要件
 （`next >=15.5.24`）のため。Next 14 のサポートは終了している。
@@ -194,7 +199,20 @@ Cloudflare では secret は `process.env` ではなく **Worker の env binding
 
 `NEXT_PUBLIC_*` を変えたら再デプロイが必要。Worker secret は再デプロイ不要。
 
-### 4.4 Scheduled job
+### 4.4 Cloudflare 側で設定すること（コードでは完結しない）
+
+以下はコードで守れないので、ダッシュボードで設定する。**公開前に必須**。
+
+| 対象 | 設定 | 理由 |
+| --- | --- | --- |
+| `/api/track` | Rate Limiting（IP あたり 60 req/min 程度） | 認証なしの書き込み口。D1 無料枠の日次書き込み上限を他人に握らせない。コード側の Origin 検査は最低限の防御でしかない |
+| `/admin/login` | Rate Limiting（IP あたり 5 req/min 程度） | 共有トークンの総当たり対策。コード側は失敗を `console.warn` でログに出すだけ |
+| `/admin` | Cloudflare Access（50ユーザーまで無料） | 任意。入れると総当たり・流出・セッション管理を外部に出せる |
+
+**注意: Rate Limiting は WAF の機能なので、`workers.dev` のままでは効かない。**
+独自ドメインを Cloudflare のゾーンに載せる必要がある。
+
+### 4.5 Scheduled job
 
 `.github/workflows/ops.yml`。Worker の Cron Triggers ではなく GitHub Actions を使う。
 

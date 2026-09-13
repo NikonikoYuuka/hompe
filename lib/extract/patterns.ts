@@ -1,3 +1,4 @@
+import { todayIso } from "../lifecycle";
 import { extracted, type Extracted } from "../types";
 
 /**
@@ -154,13 +155,17 @@ function toIso(year: number, month: number, day: number): string | null {
   return date.toISOString().slice(0, 10);
 }
 
-/** 年の記載がない月日について、今日以降で最も近い年を返す */
-function nextOccurrence(month: number, day: number, today = new Date()): string | null {
-  const year = today.getUTCFullYear();
+/**
+ * 年の記載がない月日について、今日以降で最も近い年を返す。
+ *
+ * 基準は JST の暦日（対象は日本の募集ページなので UTC で判定しない）。
+ */
+function nextOccurrence(month: number, day: number, now = new Date()): string | null {
+  const today = todayIso(now);
+  const year = Number(today.slice(0, 4));
   const thisYear = toIso(year, month, day);
   if (!thisYear) return null;
-  const todayIso = today.toISOString().slice(0, 10);
-  return thisYear >= todayIso ? thisYear : toIso(year + 1, month, day);
+  return thisYear >= today ? thisYear : toIso(year + 1, month, day);
 }
 
 /** 「9:00〜12:00」「9時〜12時」 */
@@ -180,9 +185,23 @@ export function extractWorkHours(text: string): Extracted<string> | null {
  * これは **「今週末に働ける」ことを意味しない** (D-005)。
  * 呼び出し側は availability_type と合わせて表示を決めること。
  */
+const WEEKEND_WORD = "(?:土日祝|土・日|土日|週末|土曜|日曜)";
+
+/** 「土日は不可」「土日は活動しません」— 否定を先に見る。これを飛ばすと事実が反転する */
+const WEEKEND_NEGATIVE = new RegExp(
+  `${WEEKEND_WORD}[^。\\n]{0,12}(?:不可|不可能|できません|できない|お休み|休業|休み|除く|以外|なし|ございません|ありません|ません|NG)`
+);
+
+const WEEKEND_POSITIVE = new RegExp(
+  `${WEEKEND_WORD}[^。\\n]{0,8}(?:勤務|可能|歓迎|のみ|開催|実施|活動)`
+);
+
 export function extractWeekendMention(text: string): Extracted<true> | null {
-  const pattern = /(土日|週末|土曜|日曜|土・日|土日祝)[^。\n]{0,12}(勤務|可能|歓迎|のみ|開催|実施|活動)/;
-  const match = pattern.exec(text);
+  // 否定が1つでもあれば「週末に働ける」と断定しない
+  const negative = WEEKEND_NEGATIVE.exec(text);
+  if (negative) return null;
+
+  const match = WEEKEND_POSITIVE.exec(text);
   if (!match) return null;
   return extracted(true, "high", snippet(text, match.index, match[0].length));
 }
@@ -253,26 +272,57 @@ export interface QualificationFacts {
 }
 
 /**
+ * 「資格が不要である」と Source が明示している表現。
+ *
+ * **「未経験可」「初心者歓迎」「経験不問」を含めてはいけない。**
+ * それらは *経験* についての記載であって *資格* についての記載ではない。
+ * 混ぜると「未経験可・要けん引免許」の案件が「資格不要」になる (D-011 違反)。
+ */
+const QUALIFICATION_NONE = /(資格不要|資格不問|資格・経験不問|無資格(?:可|OK|歓迎))/;
+
+/**
+ * QUALIFICATION_WORDS に無い資格が要求されている可能性を拾う保険。
+ *
+ * 「要・けん引免許」「チェーンソー取扱資格が必要」「運転免許をお持ちの方」など。
+ * 資格名を確定できないので confidence は low にして review へ回す。
+ */
+const QUALIFICATION_HINT =
+  /(?:要|必須|必要)[^。、\n]{0,12}(?:免許|資格|講習|研修|修了証)|(?:免許|資格|講習|研修|修了証)[^。、\n]{0,8}(?:必須|必要|をお持ち|保有|所持)/;
+
+/**
  * 資格要件。
  *
- * Source が「資格不要 / 未経験可 / 初心者可」と **明示している場合のみ** required=false。
+ * Source が **資格について** 「不要」と明示している場合のみ required=false。
  * 明示がなければ null を返し、無資格可と推論しない (D-011)。
  */
 export function extractQualification(text: string): Extracted<QualificationFacts> | null {
+  const hint = QUALIFICATION_HINT.exec(text);
+  const none = QUALIFICATION_NONE.exec(text);
   const names = QUALIFICATION_WORDS.filter((word) => text.includes(word));
+
+  // 「資格不要」と資格名・資格要求が同居している（例:「資格不要ですが普通免許があれば尚可」）。
+  // どちらが主かをコードでは決められないので推論しない
+  if (none && (hint || names.length > 0)) return null;
+
   if (names.length > 0) {
     const index = text.indexOf(names[0]);
     return extracted({ required: true, names }, "high", snippet(text, index, names[0].length));
   }
 
-  const noneRequired = /(資格不要|資格・経験不問|無資格(?:可|OK)|未経験(?:者)?(?:可|歓迎|OK)|初心者(?:可|歓迎|OK)|経験不問)/.exec(
-    text
-  );
-  if (noneRequired) {
+  if (hint) {
+    // 資格名を特定できていないので low。index.ts が review 理由に積む
+    return extracted(
+      { required: true, names: [] },
+      "low",
+      snippet(text, hint.index, hint[0].length)
+    );
+  }
+
+  if (none) {
     return extracted(
       { required: false, names: [] },
       "high",
-      snippet(text, noneRequired.index, noneRequired[0].length)
+      snippet(text, none.index, none[0].length)
     );
   }
 

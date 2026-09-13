@@ -35,12 +35,45 @@ test("単位のない数字を報酬として拾わない", () => {
 test("資格の明示がない場合は null（無資格可と推論しない）", () => {
   assert.equal(extractQualification("草刈りの補助をお願いします。"), null);
 
-  const none = extractQualification("未経験可。どなたでも参加できます。");
+  const none = extractQualification("資格不要。どなたでも参加できます。");
   assert.equal(none?.value.required, false);
 
   const required = extractQualification("介護職員初任者研修をお持ちの方");
   assert.equal(required?.value.required, true);
   assert.deepEqual(required?.value.names, ["介護職員初任者研修"]);
+});
+
+/**
+ * 「未経験可」は *経験* の記載であって *資格* の記載ではない (D-011)。
+ * これを混ぜると、要免許の案件が「資格不要（Source 記載）」として公開される。
+ */
+test("「未経験可 / 初心者歓迎 / 経験不問」から資格不要を導かない", () => {
+  for (const text of [
+    "未経験可。どなたでも参加できます。",
+    "初心者歓迎です。",
+    "経験不問。"
+  ]) {
+    assert.equal(extractQualification(text), null, `資格について何も言えない: ${text}`);
+  }
+});
+
+test("一覧に無い資格の要求を取りこぼさない（取りこぼすと「資格不要」になる）", () => {
+  const cases = [
+    "力仕事です。未経験可。運転免許をお持ちの方（AT限定不可）。",
+    "経験不問。要・けん引免許。",
+    "初心者歓迎！チェーンソー取扱資格が必要です。",
+    "持ち物：要・高所作業車運転技能講習修了証"
+  ];
+  for (const text of cases) {
+    const result = extractQualification(text);
+    assert.ok(result, `資格の要求を検出できていない: ${text}`);
+    assert.equal(result.value.required, true, text);
+    assert.notEqual(result.value.required, false, "絶対に「資格不要」にしてはいけない");
+  }
+});
+
+test("「資格不要」と資格の要求が同居していたら人間に回す", () => {
+  assert.equal(extractQualification("資格不要ですが、普通免許があれば尚可"), null);
 });
 
 test("時間帯を取れる", () => {
@@ -53,6 +86,21 @@ test("土日の記載は検出するが、日付ではない", () => {
   assert.equal(weekend?.value, true);
   // 日付として扱わないこと（availability の判定は judgeAvailability の責務）
   assert.equal(extractDeadline("土日勤務可能です"), null);
+});
+
+/**
+ * 否定文から weekend_available を立てると、Source が言っていないどころか
+ * 正反対のことを「（Source 記載）」付きで表示することになる。
+ */
+test("否定文から「週末に働ける」を導かない", () => {
+  for (const text of [
+    "土日勤務は不可能です",
+    "土日はお休みです（勤務なし）",
+    "平日のみ。土日は活動しません",
+    "週末は受け付けておりません"
+  ]) {
+    assert.equal(extractWeekendMention(text), null, text);
+  }
 });
 
 test("都道府県と市区町村を取れる", () => {
@@ -95,8 +143,25 @@ test("JSON-LD があれば構造化データから Fact を取り、review 理�
   assert.equal(facts.rewardType, "paid");
   assert.equal(facts.prefecture, "神奈川県");
   assert.equal(facts.applicationDeadline, "2026-09-13");
-  assert.equal(facts.qualificationRequired, false);
   assert.equal(facts.expensesProvided, true);
+
+  // 本文は「初心者可」としか書いていない。これは経験の話なので資格は不明のまま (D-011)
+  assert.equal(facts.qualificationRequired, null);
+  assert.ok(
+    facts.reviewReasons.some((reason) => reason.includes("資格")),
+    "資格が不明なら review 理由に積む"
+  );
+});
+
+test("資格不要と明記されていれば、そう表示できる", () => {
+  const html = `
+    <html><body><h1>週末の草刈り作業</h1>
+    <p>神奈川県平塚市。9:00〜12:00 の草刈り作業です。資格不要。日給8,000円。
+    交通費支給。お問い合わせ 0463-00-0000。毎週募集しています。</p>
+    </body></html>`;
+  const facts = extractListing({ html, entityName: "株式会社テスト農園", grade: "A" });
+  assert.ok(facts);
+  assert.equal(facts.qualificationRequired, false);
 });
 
 test("grade C は抽出が通っても自動公開しない理由が残る", () => {

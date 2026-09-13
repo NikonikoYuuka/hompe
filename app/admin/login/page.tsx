@@ -18,6 +18,8 @@ export default async function AdminLoginPage({
     "use server";
     const token = String(formData.get("token") ?? "");
     if (!(await verifyAdminToken(token))) {
+      // 総当たりを Workers Logs から検知できるようにする（本命は Cloudflare の Rate Limiting）
+      console.warn("[admin] ログイン失敗");
       redirect("/admin/login?error=1");
     }
     (await cookies()).set(ADMIN_COOKIE, token, {
