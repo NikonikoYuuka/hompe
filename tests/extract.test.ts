@@ -126,12 +126,12 @@ test("JSON-LD があれば構造化データから Fact を取り、review 理�
   const html = `
     <html><head>
     <script type="application/ld+json">
-    {"@type":"JobPosting","title":"週末の草刈り作業","description":"9:00-12:00 の草刈り作業です。単発アルバイト。初心者可。連絡先 0463-00-0000",
+    {"@type":"JobPosting","title":"週末の草刈り作業","description":"9:00-12:00 の草刈り作業です。初心者可。連絡先 0463-00-0000",
      "validThrough":"2026-09-13","jobLocation":{"address":{"addressRegion":"神奈川県","addressLocality":"平塚市"}},
      "hiringOrganization":{"name":"株式会社テスト農園"}}
     </script></head>
     <body><h1>週末の草刈り作業</h1>
-    <p>神奈川県平塚市。9:00〜12:00 の草刈り作業です。単発アルバイト。初心者可。日給8,000円。交通費支給。お問い合わせ 0463-00-0000</p>
+    <p>神奈川県平塚市。9:00〜12:00 の草刈り作業です。初心者可。日給8,000円。交通費支給。お問い合わせ 0463-00-0000</p>
     </body></html>`;
 
   const facts = extractListing({ html, entityName: "株式会社テスト農園", grade: "A" });
@@ -156,7 +156,7 @@ test("JSON-LD があれば構造化データから Fact を取り、review 理�
 test("資格不要と明記されていれば、そう表示できる", () => {
   const html = `
     <html><body><h1>週末の草刈り作業</h1>
-    <p>神奈川県平塚市。9:00〜12:00 の草刈り作業です。単発アルバイト。資格不要。日給8,000円。
+    <p>神奈川県平塚市。9:00〜12:00 の草刈り作業です。資格不要。日給8,000円。
     交通費支給。お問い合わせ 0463-00-0000。毎週募集しています。</p>
     </body></html>`;
   const facts = extractListing({ html, entityName: "株式会社テスト農園", grade: "A" });
@@ -165,7 +165,7 @@ test("資格不要と明記されていれば、そう表示できる", () => {
 });
 
 test("grade C は抽出が通っても自動公開しない理由が残る", () => {
-  const html = `<html><body><h1>週末の草刈り</h1><p>神奈川県平塚市で草刈り。9:00〜12:00。単発アルバイト。日給8,000円。お問い合わせ 0463-00-0000。毎週募集しています。</p></body></html>`;
+  const html = `<html><body><h1>週末の草刈り</h1><p>神奈川県平塚市で草刈り。9:00〜12:00。初心者可。日給8,000円。お問い合わせ 0463-00-0000。毎週募集しています。</p></body></html>`;
   const facts = extractListing({ html, entityName: "テスト農園", grade: "C" });
   assert.ok(facts);
   assert.ok(facts.reviewReasons.some((reason) => reason.includes("grade C")));

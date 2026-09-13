@@ -1,3 +1,4 @@
+import type { PayFacts } from "./extract/patterns";
 import type { ListingCategory, RewardType } from "./types";
 
 /**
@@ -62,13 +63,26 @@ function matched(text: string, patterns: Array<[string, RegExp]>): string[] {
   return patterns.filter(([, pattern]) => pattern.test(text)).map(([label]) => label);
 }
 
-export function judgeSideJobFit(
-  text: string,
-  context: { category: ListingCategory | null; rewardType: RewardType }
-): SideJobFit {
+export interface SideJobContext {
+  category: ListingCategory | null;
+  rewardType: RewardType;
+  /** 報酬の単位。日給・日当は単発の仕事の指標として扱う (D-026) */
+  payUnit: PayFacts["unit"];
+}
+
+export function judgeSideJobFit(text: string, context: SideJobContext): SideJobFit {
   const fulltime = matched(text, FULLTIME_PATTERNS);
   const notCarried = matched(text, NOT_CARRIED_PATTERNS);
   const sideJob = matched(text, SIDE_JOB_PATTERNS);
+
+  /**
+   * 日給・日当で募集しているものは単発の仕事とみなす。
+   *
+   * 「日給月給制」は建設業などの正社員の給与制度なので、これに含めてはいけない。
+   * extractPay は「日給月給」を daily と判定しない（単位語の直後に金額が来ないため）ので、
+   * ここで payUnit を見る限り取り違えない。
+   */
+  if (context.payUnit === "daily") sideJob.push("日給");
 
   // 複数の雇用形態が書かれている（例:「正社員・アルバイト同時募集」）。
   // どれが主かをコードでは決められない

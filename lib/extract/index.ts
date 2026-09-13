@@ -166,7 +166,8 @@ export function extractListing(input: ExtractInput): ExtractedListing | null {
   // 仕事の中身（physicalWork）とは直交する軸。正社員の介護は「介護」だが副業ではない
   const sideJob = judgeSideJobFit(text, {
     category: eligibility.category,
-    rewardType
+    rewardType,
+    payUnit: pay?.value.unit ?? null
   });
   if (sideJob.suitable === false) {
     // 対象外と確定したものは listing にしない（PC 中心の仕事と同じ扱い）

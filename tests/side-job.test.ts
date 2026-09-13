@@ -11,7 +11,8 @@ import { extractListing } from "../lib/extract";
  * 「週末の肉体副業」として載ってしまう。
  */
 
-const paid = { category: null, rewardType: "paid" } as const;
+/** 時給の有給案件（日給は単発の指標になるので、既定の文脈には入れない） */
+const paid = { category: null, rewardType: "paid", payUnit: "hourly" } as const;
 
 test("本業を置き換える働き方は対象外", () => {
   for (const text of [
@@ -72,14 +73,40 @@ test("雇用形態の記載がなければ掲載しない", () => {
   assert.ok(result.reason.includes("推論しない"));
 });
 
+/**
+ * 日給・日当で募集しているものは単発の仕事とみなす（D-026、依頼者の判断）。
+ * 「日給月給制」は正社員の給与制度なので、これに含めない。
+ */
+test("日給・日当は単発の指標として掲載対象にする", () => {
+  const daily = { category: null, rewardType: "paid", payUnit: "daily" } as const;
+  assert.equal(judgeSideJobFit("草刈り作業。日給8,000円。", daily).suitable, true);
+  assert.equal(judgeSideJobFit("搬入作業。日当10,000円。", daily).suitable, true);
+});
+
+test("日給でも正社員の記載があれば人間に回す（日給月給制の正社員など）", () => {
+  const daily = { category: null, rewardType: "paid", payUnit: "daily" } as const;
+  assert.equal(judgeSideJobFit("土木作業員（正社員）。日給12,000円。", daily).suitable, null);
+});
+
+test("時給だけでは掲載対象にしない（契約社員も時給のことがあるため）", () => {
+  assert.equal(judgeSideJobFit("倉庫での荷役作業。時給1,200円。", paid).suitable, false);
+});
+
 test("ボランティア・地域活動は雇用形態の判定対象外", () => {
   assert.equal(
-    judgeSideJobFit("河川清掃活動。無償。", { category: "volunteer_local", rewardType: "volunteer" })
-      .suitable,
+    judgeSideJobFit("河川清掃活動。無償。", {
+      category: "volunteer_local",
+      rewardType: "volunteer",
+      payUnit: null
+    }).suitable,
     true
   );
   assert.equal(
-    judgeSideJobFit("ビーチクリーンのお手伝い", { category: null, rewardType: "volunteer" }).suitable,
+    judgeSideJobFit("ビーチクリーンのお手伝い", {
+      category: null,
+      rewardType: "volunteer",
+      payUnit: null
+    }).suitable,
     true
   );
 });
