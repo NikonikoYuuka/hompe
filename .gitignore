@@ -9,3 +9,4 @@ yarn-error.log*
 .pnpm-debug.log*
 .cache
 sources/seed/sources.json
+*.tsbuildinfo
