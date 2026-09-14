@@ -20,7 +20,8 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "db:migrate:local": "wrangler d1 migrations apply nikutai-fukugyou --local",
     "db:migrate:remote": "wrangler d1 migrations apply nikutai-fukugyou --remote",
-    "db:console": "wrangler d1 execute nikutai-fukugyou --remote --command"
+    "db:console": "wrangler d1 execute nikutai-fukugyou --remote --command",
+    "db:seed:dev": "wrangler d1 execute nikutai-fukugyou --local --file db/fixtures/dev.sql"
   },
   "dependencies": {
     "next": "^15.5.25",

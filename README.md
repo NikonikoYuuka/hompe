@@ -1,5 +1,7 @@
 # 肉体副業 (Nikutai Fukugyou) — V0.1
 
+> **引き継ぐ人へ: まず `docs/11_HANDOVER.md` を読んでください。**
+
 週末に身体を使ってできる仕事・アルバイト・ボランティア・地域活動を、
 **公式の募集ページから集めて紹介する編集メディア**。
 
@@ -31,6 +33,7 @@ npm install
 # D1 を作り、出力された database_id を wrangler.jsonc に貼る
 npx wrangler d1 create nikutai-fukugyou
 npm run db:migrate:local
+npm run db:seed:dev          # 開発用のサンプルデータ（無いと画面が空のまま）
 
 # 管理画面用のトークンをローカルに置く（Git 管理外）
 echo 'ADMIN_TOKEN = "任意のランダム文字列"' > .dev.vars
@@ -106,6 +109,7 @@ legacy/         このリポジトリに元々あった Retro Homepage Builder �
 | `docs/08_ARCHITECTURE.md` | 構成図 / data flow / deployment / scheduled job / 無料枠見積もり |
 | `docs/09_MONETIZATION.md` | AdSense の要件確認・実装・有効化手順 |
 | `docs/10_SPEC.md` | **原典**。実装依頼の原文（§0〜§49）。コード中の `spec §N` はここを指す |
+| `docs/11_HANDOVER.md` | **引き継ぎメモ**。最初に読む。現状 / 次にやること / ハマりどころ |
 
 ---
 
@@ -132,6 +136,7 @@ npm run lint       # ESLint（scripts/ sources/ tests/ も対象）
 npm run typecheck  # tsc --noEmit
 npm test           # 抽出・lifecycle・広告ガードのテスト
 
+npm run db:seed:dev         # 開発用サンプルデータ投入（ローカルのみ）
 npm run db:migrate:local    # D1（ローカル）へスキーマ適用
 npm run db:migrate:remote   # D1（本番）へスキーマ適用
 npm run db:console -- "select ..."

@@ -16,6 +16,20 @@ npm run db:migrate:local    # 手元の開発用
 npm run db:migrate:remote   # 本番
 ```
 
+## 開発用のサンプルデータ
+
+```bash
+npm run db:seed:dev
+```
+
+`db/fixtures/dev.sql` を流します。**ローカルのみ**（`--local` 固定）。
+既存の listings / sources / analytics_events を消してから入れ直します。
+
+これを流さないと DB が空で、`ListingCard` も `scheduleText()` も `AdSlot` も
+一度もレンダリングされません。UI を触る前に必ず流してください。
+
+日付は実行時に計算するので、いつ流しても「今週末」が正しく入ります。
+
 ## マイグレーション
 
 `db/migrations/` に連番で SQL を置きます。`wrangler d1 migrations apply` が
