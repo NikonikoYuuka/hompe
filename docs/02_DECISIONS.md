@@ -376,6 +376,21 @@ daily と判定しない。判定は本文の文字列ではなく `pay_unit` �
 
 ---
 
+## D-029 公開クエリはカラムを列挙せず `select *` を使う
+
+**Decision**: `lib/listings.ts` の公開クエリはカラム列挙をやめ `select *` にする。
+
+**Reason**: `listings` にカラムを1本足すとき、カラム列挙への追記を忘れても
+**型エラーにならず、実行時も `mapListing` が静かに `null` を返すだけ**だった。
+`String(row.title)` に至っては `"undefined"` という文字列になる。
+Listing のカラム追加は9ファイルに触る作業なので、必ず誰かが忘れる。
+
+公開判定は `status = 'active'` で行っており、`listings` に秘匿カラムは無い。
+置き換え前に、列挙していた48カラムがスキーマの48カラムと過不足なく一致することを
+機械的に確認した（`select *` と等価）。
+
+---
+
 ## D-028 抽出の却下理由をゲート別に返す
 
 **Decision**: `extractListing` は `ExtractedListing | null` ではなく

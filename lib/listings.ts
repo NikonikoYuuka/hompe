@@ -23,16 +23,13 @@ export interface ListingFilters {
 
 export type PublicListing = ListingRow;
 
-const COLUMNS = `
-  id, source_id, source_url, title, description, work_type, category, physical_work,
-  eligibility_reason, reward_type, pay_text, pay_min, pay_max, pay_unit, expenses_provided,
-  benefits_text, prefecture, city, address, postal_code, latitude, longitude, nearest_station,
-  station_walk_minutes, car_allowed, pickup_available, meeting_point, qualification_required,
-  required_qualifications, availability_type, event_date, event_end_date, application_deadline,
-  work_hours_text, weekend_available, schedule_note, editorial_note, purpose_tags, safety_flags,
-  status, review_reason, extraction_method, fact_hash, last_verified_at, published_at, closed_at,
-  created_at, updated_at
-`;
+/**
+ * 公開クエリは `select *` を使う。
+ *
+ * 以前はカラムを列挙していたが、`listings` にカラムを足したときに
+ * ここへの追記を忘れても型エラーにならず、`mapListing` が静かに null を返していた。
+ * 公開判定は `status = 'active'` で行っており、秘匿カラムは無いので `*` で安全。
+ */
 
 export async function fetchPublicListings(
   filters: ListingFilters = {},
@@ -67,7 +64,7 @@ export async function fetchPublicListings(
     "公開 Listing の取得",
     async (db) => {
       const rows = await db.all(
-        `select ${COLUMNS} from listings
+        `select * from listings
          where ${where.join(" and ")}
          order by (event_date is null), event_date asc, published_at desc
          limit ?`,
@@ -84,7 +81,7 @@ export async function fetchPublicListing(id: string): Promise<PublicListing | nu
     "Listing 詳細の取得",
     async (db) => {
       const row = await db.first(
-        `select ${COLUMNS} from listings where id = ? and status = 'active'`,
+        "select * from listings where id = ? and status = 'active'",
         [id]
       );
       return row ? mapListing(row) : null;
@@ -106,7 +103,7 @@ export async function fetchWeekendListings(limit = 6): Promise<PublicListing[]> 
     "今週末の Listing の取得",
     async (db) => {
       const rows = await db.all(
-        `select ${COLUMNS} from listings
+        `select * from listings
          where status = 'active'
            and availability_type = 'fixed_date'
            and event_date >= ? and event_date <= ?
